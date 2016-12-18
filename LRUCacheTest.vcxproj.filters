@@ -35,6 +35,12 @@
     <ClInclude Include="LRUCacheV5.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="hash_map.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="LRUCacheV6.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="run_lru_cache_tests.bat">

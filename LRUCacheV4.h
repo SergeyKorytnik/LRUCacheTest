@@ -5,63 +5,103 @@
 //   or with boost::multi_index::ordered_index otherwise.
 //
 // Written by Sergey Korytnik 
+#pragma once
 
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/sequenced_index.hpp>
-#ifdef USE_UNORDERED_MAP
 #include <boost/multi_index/hashed_index.hpp>
-#else
 #include <boost/multi_index/ordered_index.hpp>
-#endif
 #include <boost/multi_index/member.hpp>
+#include <boost/pool/pool_alloc.hpp>
 
-template <typename KeyType, typename ValueType>
+namespace LRUCacheV4 {
+
+template <typename KeyType, typename ValueType, 
+    bool use_unordered_map,
+    bool use_fast_allocator
+>
 class LRUCache {
     struct Entry;
+    using AllocatorType = typename std::conditional<use_fast_allocator,
+        boost::fast_pool_allocator<Entry>,
+        std::allocator<Entry>
+    >::type;
+
+    using UnorderedIndexType = boost::multi_index::hashed_unique<
+        boost::multi_index::member<Entry, KeyType, &Entry::key>
+    >;
+    using OrderedIndexType = boost::multi_index::ordered_unique<
+        boost::multi_index::member<Entry, KeyType, &Entry::key>
+    >;
+    using IndexType = typename std::conditional<use_unordered_map,
+            UnorderedIndexType, OrderedIndexType>::type;
+
     using EntryMultiIndex =
         boost::multi_index_container <
             Entry,
             boost::multi_index::indexed_by<
                 boost::multi_index::sequenced<>,
-#ifdef USE_UNORDERED_MAP                
-                boost::multi_index::hashed_unique<
-#else
-                boost::multi_index::ordered_unique<
-#endif
-                    boost::multi_index::member<Entry, KeyType, &Entry::key>
-                >
-            >
+                IndexType
+            >,
+            AllocatorType
         >;
 public:
-    LRUCache(size_t cacheSize) : maxCacheSize(cacheSize){}
+    LRUCache(size_t cacheSize) : maxCacheSize(cacheSize) {}
+
+    static constexpr const char* description() {
+        return use_unordered_map ?
+            (use_fast_allocator ?
+                "LRUCache(boost::multi_index_container"
+                " + hashed_unique + boost::fast_pool_allocator)"
+                :
+                "LRUCache(boost::multi_index_container"
+                " + hashed_unique + std::allocator)"
+                )
+            :
+            (use_fast_allocator ?
+                "LRUCache(boost::multi_index_container"
+                " + ordered_unique + boost::fast_pool_allocator)"
+                :
+                "LRUCache(boost::multi_index_container"
+                " + ordered_unique + std::allocator)"
+                )
+            ;
+    }
 
     std::pair<bool, ValueType> get(const KeyType& key) {
         auto& keyMap = entries.get<1>();
         auto l = keyMap.find(key);
         if (l != keyMap.end()) {
             entries.relocate(entries.end(), entries.iterator_to(*l));
-            return {true, l->value};
+            return{ true, l->value };
         }
-        return {false, ValueType()};
+        return{ false, ValueType() };
     }
 
-    void put(const KeyType& key, const ValueType& value) {
-        put(std::move(KeyType(key)), std::move(ValueType(value)));
+    bool put(const KeyType& key, const ValueType& value) {
+        return put(std::move(KeyType(key)), std::move(ValueType(value)));
+    }
+    bool put(const KeyType& key, ValueType&& value) {
+        return put(std::move(KeyType(key)), std::move(value));
+    }
+    bool put(KeyType&& key, const ValueType& value) {
+        return put(std::move(key), std::move(ValueType(value)));
     }
 
-    void put(KeyType&& key, ValueType&& value) {
-        auto& keyMap = entries.get<1>();        
+    bool put(KeyType&& key, ValueType&& value) {
+        auto& keyMap = entries.get<1>();
         auto l = keyMap.find(key);
         if (l != keyMap.end()) {
             l->value = std::move(value);
             entries.relocate(entries.end(), entries.iterator_to(*l));
-            return;
+            return false;
         }
 
         if (entries.size() >= maxCacheSize) {
             entries.pop_front();
         }
         entries.emplace_back(std::move(key), std::move(value));
+        return true;
     }
 private:
     struct Entry {
@@ -72,9 +112,11 @@ private:
         // marked as mutable!
         // It is a trick from 
         // http://www.boost.org/doc/libs/1_62_0/libs/multi_index/doc/tutorial/techniques.html#emulate_assoc_containers
-        mutable ValueType value; 
+        mutable ValueType value;
     };
 
     EntryMultiIndex entries;
     const size_t maxCacheSize;
 };
+
+} // namespace LRUCacheV4

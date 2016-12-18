@@ -8,6 +8,7 @@
 #include "hash_map.hpp"
 #include <vector>
 #include <cassert>
+namespace LRUCacheV5 {
 
 template <typename KeyType, typename ValueType>
 class LRUCache {
@@ -21,6 +22,10 @@ public:
         keys.reserve(cacheSize);
     }
 
+    static constexpr const char* description() {
+        return "LRUCache(emilib::HashMap + custom double linked list over vector)";
+    }
+
     std::pair<bool, ValueType> get(const KeyType& key) {
         assert(keys.size() <= maxCacheSize);
         auto l = keys.find(key);
@@ -31,12 +36,11 @@ public:
         return{ false, ValueType() };
     }
 
-    void put(const KeyType& key, const ValueType& value) {
-        put(std::move(KeyType(key)), std::move(ValueType(value)));
+    bool put(const KeyType& key, const ValueType& value) {
+        return put(key, std::move(ValueType(value)));
     }
 
-    void put(const KeyType& key, ValueType&& value
-    ) {
+    bool put(const KeyType& key, ValueType&& value) {
         assert(keys.size() <= maxCacheSize);
         size_t entryIndex = keys.size() + 1; // +1 since the first entry is a sentinel
         auto l = keys.insert(key, entryIndex);
@@ -44,7 +48,7 @@ public:
             entryIndex = l.first->second;
             entries[entryIndex].value = std::forward<ValueType>(value);
             pushIntoQueue(entryIndex);
-            return;
+            return false;
         }
 
         assert(entryIndex == keys.size());
@@ -62,6 +66,7 @@ public:
             e.keyLocation = std::move(l.first);
         }
         pushIntoQueue(entryIndex);
+        return true;
     }
 
 private:
@@ -94,3 +99,5 @@ private:
     MapType keys;
     const size_t maxCacheSize;
 };
+
+} // namespace LRUCacheV5

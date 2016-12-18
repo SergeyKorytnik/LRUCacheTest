@@ -206,6 +206,7 @@ public:
 
 	~HashMap()
 	{
+        printf("_max_probe_length = %d\n", _max_probe_length);
 		for (size_t bucket=0; bucket<_num_buckets; ++bucket) {
 			if (_states[bucket] == State::FILLED) {
 				_pairs[bucket].~PairT();
@@ -436,7 +437,7 @@ public:
 	{
 		DCHECK_EQ_F(it._map, this);
 		DCHECK_LT_F(it._bucket, _num_buckets);
-		_states[it._bucket] = State::ACTIVE;
+   		_states[it._bucket] = State::ACTIVE;
 		_pairs[it._bucket].~PairT();
 		_num_filled -= 1;
 		return ++it;

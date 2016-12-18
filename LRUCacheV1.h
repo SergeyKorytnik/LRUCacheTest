@@ -7,34 +7,66 @@
 //
 #pragma once
 #include <vector>
-#ifdef USE_UNORDERED_MAP
 #include <unordered_map>
-#else
 #include <map>
-#endif
 #include <cassert>
-//#define USE_UNORDERED_MAP
+#include <type_traits>
+#include <boost/pool/pool_alloc.hpp>
 
-template <typename KeyType, typename ValueType>
+
+namespace LRUCacheV1 {
+template <typename KeyType, typename ValueType, 
+    bool use_unordered_map,
+    bool use_fast_allocator
+>
 class LRUCache {
-    template<class U, class T,
-        class = std::enable_if_t<std::is_same<std::decay_t<T>, U>::value, T>>
-        using LimitTo = T;
     struct Entry;
-#ifdef USE_UNORDERED_MAP 
-    using MapType = std::unordered_map<KeyType, size_t>;
-#else
-    using MapType = std::map<KeyType, size_t>;
-#endif
+
+    using MapPairAllocatorType = typename std::conditional<use_fast_allocator,
+        boost::fast_pool_allocator<std::pair<const KeyType, size_t>>,
+        std::allocator<std::pair<const KeyType, Entry>>
+    >::type;
+    using BaseOrderedMapType = std::map<KeyType, size_t,
+        std::less<KeyType>,
+        MapPairAllocatorType
+    >;
+
+    struct OrderedMapType : public BaseOrderedMapType {
+        // to unify API with std::unordered_map<KeyType, size_t>
+        OrderedMapType(size_t) {}
+    };
+    using UnorderedMapType = std::unordered_map<KeyType, size_t>;
+
+    using MapType = typename std::conditional<use_unordered_map,
+        UnorderedMapType, OrderedMapType>::type;
 public:
-    LRUCache(size_t cacheSize) : maxCacheSize(cacheSize) 
-#ifdef USE_UNORDERED_MAP 
+    LRUCache(size_t cacheSize) : maxCacheSize(cacheSize)
         , keys(2 * cacheSize)
-#endif
     {
         // add the sentinel
         entries.emplace_back(0, 0, ValueType(), MapType::iterator());
     }
+
+    static constexpr const char* description() {
+        return use_unordered_map ?
+            (use_fast_allocator ?
+                "LRUCache(std::unordered_map"
+                " + custom double linked list over vector + boost::fast_pool_allocator)"
+                :
+                "LRUCache(std::unordered_map"
+                " + custom double linked list over vector + std::allocator)"
+                )
+            :
+            (use_fast_allocator ?
+                "LRUCache(std::map"
+                " + custom double linked list over vector + boost::fast_pool_allocator)"
+                :
+                "LRUCache(std::map"
+                " + custom double linked list over vector + std::allocator)"
+                )
+            ;
+    }
+
     std::pair<bool, ValueType> get(const KeyType& key) {
         assert(keys.size() <= maxCacheSize);
         auto l = keys.find(key);
@@ -45,21 +77,17 @@ public:
         return{ false, ValueType() };
     } 
 
-    void put(const KeyType& key, const ValueType& value) {
-        put(std::move(KeyType(key)), std::move(ValueType(value)));
+    bool put(const KeyType& key, const ValueType& value) {
+        return put(std::move(KeyType(key)), std::move(ValueType(value)));
     }
-    void put(const KeyType& key, ValueType&& value) {
-        put(std::move(KeyType(key)), std::move(value));
+    bool put(const KeyType& key, ValueType&& value) {
+        return put(std::move(KeyType(key)), std::move(value));
     }
-    void put(KeyType&& key,const ValueType& value) {
-        put(std::move(key), std::move(ValueType(value)));
+    bool put(KeyType&& key,const ValueType& value) {
+        return put(std::move(key), std::move(ValueType(value)));
     }
 
-    //template <typename KeyType_T, typename ValueType_T>
-    void put(KeyType&& key, ValueType&& value
-        //LimitTo<KeyType,KeyType_T>&& key, 
-        //LimitTo<ValueType,ValueType_T>&& value
-    ) {
+    bool put(KeyType&& key, ValueType&& value) {
         assert(keys.size() <= maxCacheSize);
         size_t entryIndex = keys.size() + 1; // +1 since the first entry is a sentinel
         auto l = keys.try_emplace(std::forward<KeyType>(key), entryIndex);
@@ -67,7 +95,7 @@ public:
             entryIndex = l.first->second;
             entries[entryIndex].value = std::forward<ValueType>(value);
             pushIntoQueue(entryIndex);
-            return;
+            return false;
         }
 
         assert(entryIndex == keys.size());
@@ -85,6 +113,7 @@ public:
             e.keyLocation = std::move(l.first);
         }
         pushIntoQueue(entryIndex);
+        return true;
     }
 private:
     void pushIntoQueue(size_t entryIndex) {
@@ -116,3 +145,5 @@ private:
     MapType keys;
     const size_t maxCacheSize;
 };
+
+}// namespace LRUCacheV1
