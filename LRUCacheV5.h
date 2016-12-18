@@ -15,6 +15,13 @@ class LRUCache {
     struct Entry;
     using MapType = emilib::HashMap<KeyType, size_t>;
 public:
+    LRUCache() = delete;
+    LRUCache(const LRUCache&) = delete;
+    LRUCache& operator=(const LRUCache&) = delete;
+    LRUCache(LRUCache&&) = default;
+    LRUCache& operator=(LRUCache&&) = default;
+    ~LRUCache() = default;
+
     LRUCache(size_t cacheSize) : maxCacheSize(cacheSize)        
     {
         // add the sentinel

@@ -56,7 +56,13 @@ class LRUCache {
 
     using QueueType = std::list<typename MapType::iterator, QueueItemAllocator>;
 public:
-    LRUCache(size_t cacheSize) 
+    LRUCache() = delete;
+    LRUCache(const LRUCache&) = delete;
+    LRUCache& operator=(const LRUCache&) = delete;
+    LRUCache(LRUCache&&) = default;
+    LRUCache& operator=(LRUCache&&) = default;
+    ~LRUCache() = default;
+    LRUCache(size_t cacheSize)
         : maxCacheSize(cacheSize), entries(2*cacheSize) {}
 
     static constexpr const char* description() {

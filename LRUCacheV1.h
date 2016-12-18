@@ -40,6 +40,13 @@ class LRUCache {
     using MapType = typename std::conditional<use_unordered_map,
         UnorderedMapType, OrderedMapType>::type;
 public:
+    LRUCache() = delete;
+    LRUCache(const LRUCache&) = delete;
+    LRUCache& operator=(const LRUCache&) = delete;
+    LRUCache(LRUCache&&) = default;
+    LRUCache& operator=(LRUCache&&) = default;
+    ~LRUCache() = default;
+
     LRUCache(size_t cacheSize) : maxCacheSize(cacheSize)
         , keys(2 * cacheSize)
     {

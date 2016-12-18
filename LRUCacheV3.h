@@ -23,6 +23,13 @@ class LRUCache<KeyType, ValueType, false>
     using MapType = boost::intrusive::set < Entry,
         boost::intrusive::key_of_value<EntryKeyAccessor>>;
 public:
+    LRUCache() = delete;
+    LRUCache(const LRUCache&) = delete;
+    LRUCache& operator=(const LRUCache&) = delete;
+    LRUCache(LRUCache&&) = default;
+    LRUCache& operator=(LRUCache&&) = default;
+    ~LRUCache() = default;
+
     LRUCache(size_t cacheSize) 
         : maxCacheSize(cacheSize) 
     {

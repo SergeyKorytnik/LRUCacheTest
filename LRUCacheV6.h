@@ -18,6 +18,13 @@ class LRUCache {
     using QueueType = boost::intrusive::list<Entry>;
     using MapType = emilib::HashMap<KeyType, Entry>;
 public:
+    LRUCache() = delete;
+    LRUCache(const LRUCache&) = delete;
+    LRUCache& operator=(const LRUCache&) = delete;
+    LRUCache(LRUCache&&) = default;
+    LRUCache& operator=(LRUCache&&) = default;
+    ~LRUCache() = default;
+
     LRUCache(size_t cacheSize) : maxCacheSize(cacheSize)        
     {
         keys.reserve(cacheSize);
