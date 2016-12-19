@@ -6,6 +6,7 @@
 // Written by Sergey Korytnik 
 #pragma once
 #include "hash_map.hpp"
+#include <functional>
 #include <vector>
 #include <cassert>
 namespace LRUCacheV5 {

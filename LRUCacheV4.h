@@ -7,12 +7,14 @@
 // Written by Sergey Korytnik 
 #pragma once
 
+#include <functional>
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/sequenced_index.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/ordered_index.hpp>
 #include <boost/multi_index/member.hpp>
 #include <boost/pool/pool_alloc.hpp>
+
 
 namespace LRUCacheV4 {
 
@@ -28,7 +30,10 @@ class LRUCache {
     >::type;
 
     using UnorderedIndexType = boost::multi_index::hashed_unique<
-        boost::multi_index::member<Entry, KeyType, &Entry::key>
+        boost::multi_index::member<Entry, KeyType, &Entry::key>,
+        // using std::hash rather than boost::hash for 
+        // consistancy of comparison with other LRUCach implementations
+        std::hash<KeyType>
     >;
     using OrderedIndexType = boost::multi_index::ordered_unique<
         boost::multi_index::member<Entry, KeyType, &Entry::key>

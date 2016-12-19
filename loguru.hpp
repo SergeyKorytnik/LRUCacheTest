@@ -1347,6 +1347,10 @@ namespace loguru
 	bool terminal_has_color() { return s_terminal_has_color; }
 
 	// Colors
+#ifdef _MSC_VER
+#pragma warning( push )
+#pragma warning(disable:4129)
+#endif
 	const char* terminal_black()      { return s_terminal_has_color ? "\e[30m" : ""; }
 	const char* terminal_red()        { return s_terminal_has_color ? "\e[31m" : ""; }
 	const char* terminal_green()      { return s_terminal_has_color ? "\e[32m" : ""; }
@@ -1365,6 +1369,9 @@ namespace loguru
 
 	// You should end each line with this!
 	const char* terminal_reset()      { return s_terminal_has_color ? "\e[0m" : ""; }
+#ifdef _MSC_VER
+#pragma warning( pop )
+#endif
 
 	// ------------------------------------------------------------------------------
 

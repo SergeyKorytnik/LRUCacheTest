@@ -5,6 +5,7 @@
 //
 // Written by Sergey Korytnik 
 #pragma once
+#include <functional>
 #include <vector>
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/unordered_set.hpp>
@@ -120,6 +121,9 @@ class LRUCache<KeyType, ValueType, true>
     struct EntryKeyAccessor;
     using QueueType = boost::intrusive::list<Entry>;
     using MapType = boost::intrusive::unordered_set < Entry,
+        // using std::hash rather than boost::hash for 
+        // consistancy of comparison with other LRUCach implementations
+        boost::intrusive::hash<std::hash<KeyType>>, 
         boost::intrusive::key_of_value<EntryKeyAccessor>,
         boost::intrusive::power_2_buckets<true>
     >;

@@ -6,6 +6,7 @@
 // Written by Sergey Korytnik 
 //
 #pragma once
+#include <functional>
 #include <vector>
 #include <unordered_map>
 #include <map>
@@ -35,7 +36,12 @@ class LRUCache {
         // to unify API with std::unordered_map<KeyType, size_t>
         OrderedMapType(size_t) {}
     };
-    using UnorderedMapType = std::unordered_map<KeyType, size_t>;
+
+    using UnorderedMapType = std::unordered_map<KeyType, size_t,
+        std::hash<KeyType>,
+        std::equal_to<KeyType>,
+        MapPairAllocatorType
+    >;
 
     using MapType = typename std::conditional<use_unordered_map,
         UnorderedMapType, OrderedMapType>::type;

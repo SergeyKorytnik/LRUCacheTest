@@ -206,7 +206,7 @@ public:
 
 	~HashMap()
 	{
-        printf("_max_probe_length = %d\n", _max_probe_length);
+        //printf("_max_probe_length = %d\n", _max_probe_length);
 		for (size_t bucket=0; bucket<_num_buckets; ++bucket) {
 			if (_states[bucket] == State::FILLED) {
 				_pairs[bucket].~PairT();
