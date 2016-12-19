@@ -65,6 +65,11 @@ public:
         if (testResults.empty())
             return;
         for (const auto& r : testResults) {
+            if(r0.cacheHitCount != r.cacheHitCount) {
+                std::cout << getTestDescription() << '\n'
+                     << r.cacheHitCount << '\n'
+                    << r0.cacheHitCount << '\n';
+            }
             check(r0.cacheHitCount == r.cacheHitCount, 
                 "cacheHitCount varies in different tests");
             check(r0.cacheMissCount == r.cacheMissCount,
@@ -111,7 +116,7 @@ namespace {
     static const std::array<std::string, 7> testValues = { "a1","b1", "c1", "d1", "e1", "f1","g1" };
 }
 
-template <template <typename,typename> typename LRUCache>
+template <template <class,class> class LRUCache>
 class LRUCacheTestImpl : public LRUCacheTest {
 public:
     const char* getTestDescription() const override {
@@ -146,20 +151,24 @@ public:
 
 private:
     template <typename IndexToValueMapping>
-    void test1(IndexToValueMapping& indToValue) {
+    void test1(IndexToValueMapping indToValue) {
         LRUCache<std::string, decltype(indToValue(0)) > lruCache(4);
         for (size_t i = 0; i < testKeys.size(); i++) {
             lruCache.put(testKeys[i], indToValue(i));
             auto res = lruCache.get(testKeys[i]);
             check(res.first == true,
                 "lruCache.get can't find the most recently added entry");
+            if(res.second != indToValue(i)) {
+                std::cout << "res.second = " << res.second << '\n';
+                std::cout << "indToValue(i) = " << indToValue(i) << '\n';
+            }
             check(res.second == indToValue(i),
-                "lruCache.get returned incorrect value");
+                "1: lruCache.get returned incorrect value");
             check(lruCache.get(testKeys[0]).first == true,
                 "lruCache.get can't find the second most recently used entry");
         }
         check(lruCache.get(testKeys[0]).second == indToValue(0),
-            "lruCache.get returned incorrect value");
+            "2: lruCache.get returned incorrect value");
         check(lruCache.get(testKeys[1]).first == false,
             "an entry is still in cache, but it is expected to be already replaced by a more recent one");
         check(lruCache.get(testKeys[2]).first == false,
@@ -169,15 +178,15 @@ private:
         check(lruCache.get(testKeys[4]).first == true,
             "lruCache.get can't find 4th MRU entry");
         check(lruCache.get(testKeys[4]).second == indToValue(4),
-            "lruCache.get returned incorrect value");
+            "3: lruCache.get returned incorrect value");
         check(lruCache.get(testKeys[5]).first == true,
             "lruCache.get can't find 3rd MRU entry");
         check(lruCache.get(testKeys[5]).second == indToValue(5),
-            "lruCache.get returned incorrect value");
+            "4: lruCache.get returned incorrect value");
         check(lruCache.get(testKeys[6]).first == true,
             "lruCache.get can't find 2nd MRU entry");
         check(lruCache.get(testKeys[6]).second == indToValue(6),
-            "lruCache.get returned incorrect value");
+            "5: lruCache.get returned incorrect value");
         lruCache.put(testKeys[1], indToValue(1));
         check(lruCache.get(testKeys[0]).first == false,
             "an entry is still in cache, but it is expected to be already replaced by a more recent one");
@@ -185,7 +194,7 @@ private:
         check(lruCache.get(testKeys[1]).first == true,
             "lruCache.get can't find the most recently added entry");
         check(lruCache.get(testKeys[1]).second == indToValue(0),
-            "lruCache.get returned incorrect value");
+            "6: lruCache.get returned incorrect value");
     }
 
 
@@ -239,14 +248,31 @@ std::pair<std::vector<size_t>, std::vector<bool>> generateTestSequence(
     std::vector<bool> sampleActions(numTrials);
     //std::random_device rd;
     std::mt19937 gen(seed);
+    size_t meanValue = static_cast<size_t>(
+          maxKeyValueToGenerate * binomialTrialSuccessProbability);
+    size_t dispersion = static_cast<size_t>(std::sqrt(
+          maxKeyValueToGenerate * binomialTrialSuccessProbability
+          * (1.0 - binomialTrialSuccessProbability)));
+    size_t minValue = meanValue - 5 * dispersion;
+    size_t maxValue = meanValue + 5 * dispersion;
     std::cout << "generating " << numTrials
-        << " keys using binomial_distribution("
-        << maxKeyValueToGenerate << ", "
-        << binomialTrialSuccessProbability << ")\n";
-    std::binomial_distribution<size_t> binomial(
-        maxKeyValueToGenerate, binomialTrialSuccessProbability);
+        //<< " keys using binomial_distribution("        
+        //<< maxKeyValueToGenerate << ", "
+        //<< binomialTrialSuccessProbability << ")\n";
+        //<< " keys using normal_distribution( "
+        //<< meanValue << ", "
+        //<< dispersion << ")\n";
+        << " keys using uniform_int_distribution( "
+        << minValue << ", "
+        << maxValue << ")\n";
+    //std::binomial_distribution<size_t> binomial(
+    //    maxKeyValueToGenerate, binomialTrialSuccessProbability);
+    //std::normal_distribution<size_t> normal(
+    //      meanValue, dispersion);
+    std::uniform_int_distribution<size_t> uniform(
+        minValue, maxValue);
     std::generate_n(samples.begin(), numTrials,
-        [&]() { return binomial(gen); });
+        [&]() { return uniform(gen); });
     std::cout << "generating put/get flag sequence of " << numTrials
         << " booleans using bernoulli_distribution("
         << bernoulliTrialSuccessProbability << ")\n";

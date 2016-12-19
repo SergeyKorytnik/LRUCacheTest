@@ -94,20 +94,21 @@ public:
         return{ false, ValueType() };
     }
 
-    bool put(const KeyType& key, const ValueType& value) {
-        return put(std::move(KeyType(key)), std::move(ValueType(value)));
-    }
-    bool put(const KeyType& key, ValueType&& value) {
-        return put(std::move(KeyType(key)), std::move(value));
-    }
-    bool put(KeyType&& key, const ValueType& value) {
-        return put(std::move(key), std::move(ValueType(value)));
-    }
+//    bool put(const KeyType& key, const ValueType& value) {
+//        return put(std::move(KeyType(key)), std::move(ValueType(value)));
+//    }
+//    bool put(const KeyType& key, ValueType&& value) {
+//        return put(std::move(KeyType(key)), std::move(value));
+//    }
+//    bool put(KeyType&& key, const ValueType& value) {
+//        return put(std::move(key), std::move(ValueType(value)));
+//    }
 
-    bool put(KeyType&& key, ValueType&& value) {
-        auto l = entries.try_emplace(std::move(key), std::move(value));
+    bool put(const KeyType& key, const ValueType& value) {
+        auto l = entries.insert(typename MapType::value_type(
+            key, Entry(value)));
         if (l.second == false) { // the key already exist in the map
-            l.first->second.value = std::move(value);
+            l.first->second.value = value;
             pushToQueueEnd(l.first->second.queueLocation);
             return false;
         }
@@ -129,7 +130,7 @@ private:
     }
 
     struct Entry {
-        Entry(ValueType&& aValue) : value(std::move(aValue)) {}
+        Entry(const ValueType& aValue) : value(aValue) {}
         ValueType value;
         typename QueueType::iterator queueLocation;
     };

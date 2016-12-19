@@ -130,7 +130,7 @@ class LRUCache<KeyType, ValueType, true>
 public:
     LRUCache(size_t cacheSize)
         : maxCacheSize(cacheSize), buckets(2 * cacheSize),
-        keyMap(MapType::bucket_traits(buckets.data(), buckets.size())) 
+        keyMap(typename MapType::bucket_traits(buckets.data(), buckets.size())) 
     {
         entries.reserve(cacheSize);
     }

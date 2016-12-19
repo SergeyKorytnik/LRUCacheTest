@@ -241,3 +241,9 @@ ModelManifest.xml
 # FAKE - F# Make
 .fake/
 /lrucache_test_results.txt
+/2_x86.csv
+/2_x64.txt
+/2_macos.txt
+/1_x86.csv
+/1_x64.csv
+/1_macos.txt

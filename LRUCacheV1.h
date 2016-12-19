@@ -25,7 +25,7 @@ class LRUCache {
 
     using MapPairAllocatorType = typename std::conditional<use_fast_allocator,
         boost::fast_pool_allocator<std::pair<const KeyType, size_t>>,
-        std::allocator<std::pair<const KeyType, Entry>>
+        std::allocator<std::pair<const KeyType, size_t>>
     >::type;
     using BaseOrderedMapType = std::map<KeyType, size_t,
         std::less<KeyType>,
@@ -57,7 +57,8 @@ public:
         , keys(2 * cacheSize)
     {
         // add the sentinel
-        entries.emplace_back(0, 0, ValueType(), MapType::iterator());
+        entries.emplace_back(0, 0, 
+            ValueType(), typename MapType::iterator());
     }
 
     static constexpr const char* description() {
@@ -103,7 +104,10 @@ public:
     bool put(KeyType&& key, ValueType&& value) {
         assert(keys.size() <= maxCacheSize);
         size_t entryIndex = keys.size() + 1; // +1 since the first entry is a sentinel
-        auto l = keys.try_emplace(std::forward<KeyType>(key), entryIndex);
+        // somehow required version of try_emplace is not available on MacOS
+        //auto l = keys.try_emplace(std::forward<KeyType>(key), entryIndex);
+        auto l = keys.insert(std::pair<KeyType,size_t>(
+            std::forward<KeyType>(key), entryIndex));
         if (l.second == false) { // the key already exist in the map
             entryIndex = l.first->second;
             entries[entryIndex].value = std::forward<ValueType>(value);

@@ -26,7 +26,7 @@ public:
     LRUCache(size_t cacheSize) : maxCacheSize(cacheSize)        
     {
         // add the sentinel
-        entries.emplace_back(0, 0, ValueType(), MapType::iterator());
+        entries.emplace_back(0, 0, ValueType(),typename MapType::iterator());
         keys.reserve(cacheSize);
     }
 

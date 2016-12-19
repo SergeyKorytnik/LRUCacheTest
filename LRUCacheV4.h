@@ -74,7 +74,7 @@ public:
     }
 
     std::pair<bool, ValueType> get(const KeyType& key) {
-        auto& keyMap = entries.get<1>();
+        auto& keyMap = entries.template get<1>();
         auto l = keyMap.find(key);
         if (l != keyMap.end()) {
             entries.relocate(entries.end(), entries.iterator_to(*l));
@@ -94,7 +94,7 @@ public:
     }
 
     bool put(KeyType&& key, ValueType&& value) {
-        auto& keyMap = entries.get<1>();
+        auto& keyMap = entries.template get<1>();
         auto l = keyMap.find(key);
         if (l != keyMap.end()) {
             l->value = std::move(value);
