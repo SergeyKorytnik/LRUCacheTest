@@ -23,11 +23,14 @@
 namespace LRUCacheV2 {
 
 template <typename KeyType, typename ValueType, 
-    bool use_unordered_map,
-    bool use_fast_allocator
+    // std::map will be used if Hasher is void!
+    typename Hasher = std::hash<KeyType>,
+    bool use_fast_allocator = false
 >
 class LRUCache {
     struct Entry;
+    static constexpr bool use_unordered_map =
+        !std::is_void<typename Hasher>::value;
     using MapPairAllocatorType = typename std::conditional<use_fast_allocator,
         boost::fast_pool_allocator<std::pair<const KeyType, Entry>>,
         std::allocator<std::pair<const KeyType, Entry>>
@@ -41,7 +44,7 @@ class LRUCache {
         OrderedMapType(size_t) {}
     };
     using UnorderedMapType = std::unordered_map<KeyType, Entry,
-        std::hash<KeyType>,
+        Hasher,
         std::equal_to<KeyType>,
         MapPairAllocatorType
     >;
@@ -85,45 +88,45 @@ public:
             ;
     }
 
-    std::pair<bool, ValueType> get(const KeyType& key) {
+    const ValueType* get(const KeyType& key) {
         auto l = entries.find(key);
         if (l != entries.end()) {
             pushToQueueEnd(l->second.queueLocation);
-            return{ true, l->second.value };
+            return &l->second.value;
         }
-        return{ false, ValueType() };
+        return nullptr;
     }
 
-//    bool put(const KeyType& key, const ValueType& value) {
-//        return put(std::move(KeyType(key)), std::move(ValueType(value)));
-//    }
-//    bool put(const KeyType& key, ValueType&& value) {
-//        return put(std::move(KeyType(key)), std::move(value));
-//    }
-//    bool put(KeyType&& key, const ValueType& value) {
-//        return put(std::move(key), std::move(ValueType(value)));
-//    }
-
     bool put(const KeyType& key, const ValueType& value) {
-        auto l = entries.insert(typename MapType::value_type(
-            key, Entry(value)));
+        return put(std::move(KeyType(key)), Entry(value));
+    }
+    bool put(const KeyType& key, ValueType&& value) {
+        return put(std::move(KeyType(key)), Entry(std::move(value)));
+    }
+    bool put(KeyType&& key, const ValueType& value) {
+        return put(std::move(key), Entry(value));
+    }
+    bool put(KeyType&& key, ValueType&& value) {
+        return put(std::move(key), Entry(std::move(value)));
+    }
+
+private:
+    bool put(KeyType&& key, Entry&& e) {
+        auto l = entries.try_emplace(std::move(key), std::move(e));
         if (l.second == false) { // the key already exist in the map
-            l.first->second.value = value;
+            l.first->second.value = std::move(e.value);
             pushToQueueEnd(l.first->second.queueLocation);
             return false;
         }
-
         if (entries.size() > maxCacheSize) {
             auto eloc = lruQueue.front();
             lruQueue.pop_front();
             entries.erase(eloc);
         }
-
         lruQueue.push_back(l.first);
         l.first->second.queueLocation = --lruQueue.end();
         return true;
     }
-private:
     void pushToQueueEnd(typename QueueType::iterator it) {
         lruQueue.splice(lruQueue.end(), lruQueue,
             it);
@@ -131,6 +134,7 @@ private:
 
     struct Entry {
         Entry(const ValueType& aValue) : value(aValue) {}
+        Entry(ValueType&& aValue) : value(std::move(aValue)) {}
         ValueType value;
         typename QueueType::iterator queueLocation;
     };

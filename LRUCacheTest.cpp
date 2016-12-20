@@ -88,15 +88,19 @@ public:
         for (auto& r : testResults) {
             averageDuration += r.testDuration;
         }
-        averageDuration /= testResults.size();
-        float avrAbsDeviation = 0.0;
-        for (auto& r : testResults) {
-            avrAbsDeviation += std::abs(r.testDuration - averageDuration);
+        size_t numSamples = testResults.size();
+        float stdDeviation = 0.0;
+        if (numSamples > 1) {
+            averageDuration /= numSamples;
+            for (auto& r : testResults) {
+                auto d = r.testDuration - averageDuration;
+                stdDeviation += d * d;
+            }
+            stdDeviation = std::sqrt(stdDeviation / (numSamples - 1));
         }
-        avrAbsDeviation /= testResults.size();
         std::cout << getTestDescription();
-        std::cout << ", "<< std::setprecision(6) << averageDuration;
-        std::cout << ", " << std::setprecision(4) << avrAbsDeviation;
+        std::cout << '\t' << std::setprecision(6) << averageDuration;
+        std::cout << '\t' << std::setprecision(4) << stdDeviation;
 //        for (auto& r : testResults) {
 //            std::cout << ", " << r.testDuration;
 //        }
@@ -125,7 +129,7 @@ public:
 
     void runSanityTests() override
     {
-        test1([&](size_t index) {return testValues[index]; });
+        test1([&](size_t index)->const std::string& {return testValues[index]; });
         test1([&](size_t index) {return 2*index; });
     }
 
@@ -152,48 +156,50 @@ public:
 private:
     template <typename IndexToValueMapping>
     void test1(IndexToValueMapping indToValue) {
-        LRUCache<std::string, decltype(indToValue(0)) > lruCache(4);
+        LRUCache<std::string, 
+            std::remove_cv<std::remove_reference<
+                decltype(indToValue(0))>::type>::type > lruCache(4);
         for (size_t i = 0; i < testKeys.size(); i++) {
             lruCache.put(testKeys[i], indToValue(i));
             auto res = lruCache.get(testKeys[i]);
-            check(res.first == true,
+            check(res != nullptr,
                 "lruCache.get can't find the most recently added entry");
-            if(res.second != indToValue(i)) {
-                std::cout << "res.second = " << res.second << '\n';
+            if(*res != indToValue(i)) {
+                std::cout << "*res = " << *res << '\n';
                 std::cout << "indToValue(i) = " << indToValue(i) << '\n';
             }
-            check(res.second == indToValue(i),
+            check(*res == indToValue(i),
                 "1: lruCache.get returned incorrect value");
-            check(lruCache.get(testKeys[0]).first == true,
+            check(lruCache.get(testKeys[0]) != nullptr,
                 "lruCache.get can't find the second most recently used entry");
         }
-        check(lruCache.get(testKeys[0]).second == indToValue(0),
+        check(*lruCache.get(testKeys[0]) == indToValue(0),
             "2: lruCache.get returned incorrect value");
-        check(lruCache.get(testKeys[1]).first == false,
+        check(lruCache.get(testKeys[1]) == nullptr,
             "an entry is still in cache, but it is expected to be already replaced by a more recent one");
-        check(lruCache.get(testKeys[2]).first == false,
+        check(lruCache.get(testKeys[2]) == nullptr,
             "an entry is still in cache, but it is expected to be already replaced by a more recent one");
-        check(lruCache.get(testKeys[3]).first == false,
+        check(lruCache.get(testKeys[3]) == nullptr,
             "an entry is still in cache, but it is expected to be already replaced by a more recent one");
-        check(lruCache.get(testKeys[4]).first == true,
+        check(lruCache.get(testKeys[4]) != nullptr,
             "lruCache.get can't find 4th MRU entry");
-        check(lruCache.get(testKeys[4]).second == indToValue(4),
+        check(*lruCache.get(testKeys[4]) == indToValue(4),
             "3: lruCache.get returned incorrect value");
-        check(lruCache.get(testKeys[5]).first == true,
+        check(lruCache.get(testKeys[5]) != nullptr,
             "lruCache.get can't find 3rd MRU entry");
-        check(lruCache.get(testKeys[5]).second == indToValue(5),
+        check(*lruCache.get(testKeys[5]) == indToValue(5),
             "4: lruCache.get returned incorrect value");
-        check(lruCache.get(testKeys[6]).first == true,
+        check(lruCache.get(testKeys[6]) != nullptr,
             "lruCache.get can't find 2nd MRU entry");
-        check(lruCache.get(testKeys[6]).second == indToValue(6),
+        check(*lruCache.get(testKeys[6]) == indToValue(6),
             "5: lruCache.get returned incorrect value");
         lruCache.put(testKeys[1], indToValue(1));
-        check(lruCache.get(testKeys[0]).first == false,
+        check(lruCache.get(testKeys[0]) == nullptr,
             "an entry is still in cache, but it is expected to be already replaced by a more recent one");
         lruCache.put(testKeys[1], indToValue(0));
-        check(lruCache.get(testKeys[1]).first == true,
+        check(lruCache.get(testKeys[1]) != nullptr,
             "lruCache.get can't find the most recently added entry");
-        check(lruCache.get(testKeys[1]).second == indToValue(0),
+        check(*lruCache.get(testKeys[1]) == indToValue(0),
             "6: lruCache.get returned incorrect value");
     }
 
@@ -219,8 +225,8 @@ private:
             }
             else {
                 auto res = lruCache.get(key);
-                if (res.first == true) {
-                    if (res.second != value)
+                if (res) {
+                    if (*res != value)
                         throw std::runtime_error("invalid value in cache");
                     ++results.cacheHitCount;
                 }
@@ -282,46 +288,57 @@ std::pair<std::vector<size_t>, std::vector<bool>> generateTestSequence(
     return{ samples,sampleActions };
 }
 
+template <typename KeyType>
+using HashFuncType = std::hash<KeyType>;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V1 = LRUCacheV1::LRUCache<KeyType, ValueType, false, false>;
+using LRUCache_V1 = LRUCacheV1::LRUCache<KeyType, ValueType, void, false>;
 template <typename KeyType, typename  ValueType>
-using LRUCache_V1u = LRUCacheV1::LRUCache<KeyType, ValueType, true, false>;
+using LRUCache_V1u = LRUCacheV1::LRUCache<
+    KeyType, ValueType, HashFuncType<KeyType>, false>;
 template <typename KeyType, typename  ValueType>
-using LRUCache_V1a = LRUCacheV1::LRUCache<KeyType, ValueType, false, true>;
+using LRUCache_V1a = LRUCacheV1::LRUCache<KeyType, ValueType, void, true>;
 template <typename KeyType, typename  ValueType>
-using LRUCache_V1ua = LRUCacheV1::LRUCache<KeyType, ValueType, true, true>;
+using LRUCache_V1ua = LRUCacheV1::LRUCache<
+    KeyType, ValueType, HashFuncType<KeyType>, true>;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V2 = LRUCacheV2::LRUCache<KeyType, ValueType, false, false>;
+using LRUCache_V2 = LRUCacheV2::LRUCache<KeyType, ValueType, void, false>;
 template <typename KeyType, typename  ValueType>
-using LRUCache_V2u = LRUCacheV2::LRUCache<KeyType, ValueType, true, false>;
+using LRUCache_V2u = LRUCacheV2::LRUCache<
+    KeyType, ValueType, HashFuncType<KeyType>, false>;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V2a = LRUCacheV2::LRUCache<KeyType, ValueType, false, true>;
+using LRUCache_V2a = LRUCacheV2::LRUCache<KeyType, ValueType, void, true>;
 template <typename KeyType, typename  ValueType>
-using LRUCache_V2ua = LRUCacheV2::LRUCache<KeyType, ValueType, true, true>;
+using LRUCache_V2ua = LRUCacheV2::LRUCache<
+    KeyType, ValueType, HashFuncType<KeyType>, true>;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V3 = LRUCacheV3::LRUCache<KeyType, ValueType, false>;
+using LRUCache_V3 = LRUCacheV3::LRUCache<KeyType, ValueType, void>;
 template <typename KeyType, typename  ValueType>
-using LRUCache_V3u = LRUCacheV3::LRUCache<KeyType, ValueType, true>;
+using LRUCache_V3u = LRUCacheV3::LRUCache<
+    KeyType, ValueType, HashFuncType<KeyType>>;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V4 = LRUCacheV4::LRUCache<KeyType, ValueType, false, false>;
+using LRUCache_V4 = LRUCacheV4::LRUCache<KeyType, ValueType, void, false>;
 template <typename KeyType, typename  ValueType>
-using LRUCache_V4u = LRUCacheV4::LRUCache<KeyType, ValueType, true, false>;
+using LRUCache_V4u = LRUCacheV4::LRUCache<
+    KeyType, ValueType, HashFuncType<KeyType>, false>;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V4a = LRUCacheV4::LRUCache<KeyType, ValueType, false, true>;
+using LRUCache_V4a = LRUCacheV4::LRUCache<KeyType, ValueType, void, true>;
 template <typename KeyType, typename  ValueType>
-using LRUCache_V4ua = LRUCacheV4::LRUCache<KeyType, ValueType, true, true>;
+using LRUCache_V4ua = LRUCacheV4::LRUCache<
+    KeyType, ValueType, HashFuncType<KeyType>, true>;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V5 = LRUCacheV5::LRUCache<KeyType, ValueType>;
+using LRUCache_V5 = LRUCacheV5::LRUCache<
+    KeyType, ValueType, HashFuncType<KeyType>>;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V6 = LRUCacheV6::LRUCache<KeyType, ValueType>;
+using LRUCache_V6 = LRUCacheV6::LRUCache<
+    KeyType, ValueType, HashFuncType<KeyType>>;
 
 std::vector<std::unique_ptr<LRUCacheTest>> constructTestVector() {
     std::unique_ptr<LRUCacheTest> init_list[] = {
@@ -422,12 +439,12 @@ int main() {
         runPerformanceTests(tests2, 64 * 1024, 16 * 1000000, 4 * 64 * 1024, 0.89, 0.33);
 
         std::cout << "The first test sequence results summary:\n";
-        std::cout << "Test Name, Average Running time(ms), Average Absolute Running Time Deviation(ms)\n";
+        std::cout << "Test Name, Average Running time(ms), Standard Deviation(ms)\n";
         for (auto& t : tests) {
             t->printTestResults();
         }
         std::cout << "The second test sequence results summary:\n";
-        std::cout << "Test Name, Average Running time(ms), Average Absolute Running Time Deviation(ms)\n";
+        std::cout << "Test Name, Average Running time(ms), Standard Deviation(ms)\n";
         for (auto& t : tests2) {
             t->printTestResults();
         }

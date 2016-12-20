@@ -11,10 +11,12 @@
 #include <cassert>
 namespace LRUCacheV5 {
 
-template <typename KeyType, typename ValueType>
+template <typename KeyType, typename ValueType,
+    typename Hasher = std::hash<KeyType>
+>
 class LRUCache {
     struct Entry;
-    using MapType = emilib::HashMap<KeyType, size_t>;
+    using MapType = emilib::HashMap<KeyType, size_t, Hasher>;
 public:
     LRUCache() = delete;
     LRUCache(const LRUCache&) = delete;
@@ -34,14 +36,14 @@ public:
         return "LRUCache(emilib::HashMap + custom double linked list over vector)";
     }
 
-    std::pair<bool, ValueType> get(const KeyType& key) {
+    const ValueType* get(const KeyType& key) {
         assert(keys.size() <= maxCacheSize);
-        auto l = keys.find(key);
-        if (l != keys.end()) {
-            pushIntoQueue(l->second);
-            return{ true, entries[l->second].value };
+        const size_t* l = keys.try_get(key);
+        if (l != nullptr) {
+            pushIntoQueue(*l);
+            return &entries[*l].value;
         }
-        return{ false, ValueType() };
+        return nullptr;
     }
 
     bool put(const KeyType& key, const ValueType& value) {
@@ -54,7 +56,7 @@ public:
         auto l = keys.insert(key, entryIndex);
         if (l.second == false) { // the key already exist in the map
             entryIndex = l.first->second;
-            entries[entryIndex].value = std::forward<ValueType>(value);
+            entries[entryIndex].value = std::move(value);
             pushIntoQueue(entryIndex);
             return false;
         }
@@ -63,14 +65,14 @@ public:
         if (entryIndex <= maxCacheSize) {
             entries.emplace_back(entryIndex,
                 entryIndex,
-                std::forward<ValueType>(value), std::move(l.first));
+                std::move(value), std::move(l.first));
         }
         else {
             entryIndex = entries[0].next;
             l.first->second = entryIndex;
             auto& e = entries[entryIndex];
             keys.erase(e.keyLocation);
-            e.value = std::forward<ValueType>(value);
+            e.value = std::move(value);
             e.keyLocation = std::move(l.first);
         }
         pushIntoQueue(entryIndex);

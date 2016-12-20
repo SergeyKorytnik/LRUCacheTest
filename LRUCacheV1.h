@@ -17,11 +17,14 @@
 
 namespace LRUCacheV1 {
 template <typename KeyType, typename ValueType, 
-    bool use_unordered_map,
-    bool use_fast_allocator
+    // std::map will be used if Hasher is void!
+    typename Hasher = std::hash<KeyType>, 
+    bool use_fast_allocator = false
 >
 class LRUCache {
     struct Entry;
+    static constexpr bool use_unordered_map = 
+       !std::is_void<typename Hasher>::value;
 
     using MapPairAllocatorType = typename std::conditional<use_fast_allocator,
         boost::fast_pool_allocator<std::pair<const KeyType, size_t>>,
@@ -38,7 +41,7 @@ class LRUCache {
     };
 
     using UnorderedMapType = std::unordered_map<KeyType, size_t,
-        std::hash<KeyType>,
+        typename Hasher,
         std::equal_to<KeyType>,
         MapPairAllocatorType
     >;
@@ -81,36 +84,49 @@ public:
             ;
     }
 
-    std::pair<bool, ValueType> get(const KeyType& key) {
+    const ValueType* get(const KeyType& key) {
         assert(keys.size() <= maxCacheSize);
         auto l = keys.find(key);
         if (l != keys.end()) {
             pushIntoQueue(l->second);
-            return{ true, entries[l->second].value };
+            return &entries[l->second].value;
         }
-        return{ false, ValueType() };
+        return nullptr;
     } 
 
     bool put(const KeyType& key, const ValueType& value) {
-        return put(std::move(KeyType(key)), std::move(ValueType(value)));
+        assert(keys.size() <= maxCacheSize);
+        // keys.size() + 1 since the first entry is a sentinel
+        return finishPutOperation(
+            keys.try_emplace(key, keys.size() + 1), std::move(ValueType(value)));
     }
     bool put(const KeyType& key, ValueType&& value) {
-        return put(std::move(KeyType(key)), std::move(value));
+        assert(keys.size() <= maxCacheSize);
+        // keys.size() + 1 since the first entry is a sentinel
+        return finishPutOperation(
+            keys.try_emplace(key, keys.size() + 1), std::move(value));
     }
+
     bool put(KeyType&& key,const ValueType& value) {
-        return put(std::move(key), std::move(ValueType(value)));
+        assert(keys.size() <= maxCacheSize);
+        // keys.size() + 1 since the first entry is a sentinel
+        return finishPutOperation(
+            keys.try_emplace(std::move(key), keys.size() + 1), 
+            std::move(ValueType(value)));
     }
 
     bool put(KeyType&& key, ValueType&& value) {
         assert(keys.size() <= maxCacheSize);
-        size_t entryIndex = keys.size() + 1; // +1 since the first entry is a sentinel
-        // somehow required version of try_emplace is not available on MacOS
-        //auto l = keys.try_emplace(std::forward<KeyType>(key), entryIndex);
-        auto l = keys.insert(std::pair<KeyType,size_t>(
-            std::forward<KeyType>(key), entryIndex));
+        // keys.size() + 1 since the first entry is a sentinel
+        return finishPutOperation(
+            keys.try_emplace(std::move(key), keys.size() + 1),std::move(value));
+    }
+private:
+    bool finishPutOperation(
+        std::pair<typename MapType::iterator,bool> l, ValueType&& value) {
+        size_t entryIndex = l.first->second;
         if (l.second == false) { // the key already exist in the map
-            entryIndex = l.first->second;
-            entries[entryIndex].value = std::forward<ValueType>(value);
+            entries[entryIndex].value = std::move(value);
             pushIntoQueue(entryIndex);
             return false;
         }
@@ -118,21 +134,20 @@ public:
         assert(entryIndex == keys.size());
         if (entryIndex <= maxCacheSize) {
             entries.emplace_back(entryIndex,
-                entryIndex, 
-                std::forward<ValueType>(value), std::move(l.first));
+                entryIndex,
+                std::move(value), std::move(l.first));
         }
         else {
             entryIndex = entries[0].next;
             l.first->second = entryIndex;
             auto& e = entries[entryIndex];
             keys.erase(e.keyLocation);
-            e.value = std::forward<ValueType>(value);
+            e.value = std::move(value);
             e.keyLocation = std::move(l.first);
         }
         pushIntoQueue(entryIndex);
         return true;
     }
-private:
     void pushIntoQueue(size_t entryIndex) {
         auto& e = entries[entryIndex];
         entries[e.prev].next = e.next;

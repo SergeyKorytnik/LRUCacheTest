@@ -12,11 +12,13 @@
 
 namespace LRUCacheV6 {
 
-template <typename KeyType, typename ValueType>
+template <typename KeyType, typename ValueType,
+    typename Hasher = std::hash<KeyType>
+>
 class LRUCache {
     struct Entry;
     using QueueType = boost::intrusive::list<Entry>;
-    using MapType = emilib::HashMap<KeyType, Entry>;
+    using MapType = emilib::HashMap<KeyType, Entry,Hasher>;
 public:
     LRUCache() = delete;
     LRUCache(const LRUCache&) = delete;
@@ -34,14 +36,14 @@ public:
         return "LRUCache(emilib::HashMap + boost::intrusive::list)";
     }
 
-    std::pair<bool, ValueType> get(const KeyType& key) {
+    const ValueType* get(const KeyType& key) {
         assert(keys.size() <= maxCacheSize);
         auto l = keys.find(key);
         if (l != keys.end()) {
             pushToQueueEnd(l->second);
-            return{ true, l->second.value };
+            return &l->second.value;
         }
-        return{ false, ValueType() };
+        return nullptr;
     }
 
     bool put(const KeyType& key, const ValueType& value) {

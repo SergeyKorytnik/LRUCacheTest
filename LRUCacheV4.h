@@ -19,11 +19,15 @@
 namespace LRUCacheV4 {
 
 template <typename KeyType, typename ValueType, 
-    bool use_unordered_map,
-    bool use_fast_allocator
+    // ordered_index will be used if Hasher is void!
+    typename Hasher = std::hash<KeyType>,
+    bool use_fast_allocator = false
 >
 class LRUCache {
     struct Entry;
+    static constexpr bool use_unordered_map =
+        !std::is_void<typename Hasher>::value;
+
     using AllocatorType = typename std::conditional<use_fast_allocator,
         boost::fast_pool_allocator<Entry>,
         std::allocator<Entry>
@@ -33,7 +37,7 @@ class LRUCache {
         boost::multi_index::member<Entry, KeyType, &Entry::key>,
         // using std::hash rather than boost::hash for 
         // consistancy of comparison with other LRUCach implementations
-        std::hash<KeyType>
+        Hasher
     >;
     using OrderedIndexType = boost::multi_index::ordered_unique<
         boost::multi_index::member<Entry, KeyType, &Entry::key>
@@ -73,14 +77,14 @@ public:
             ;
     }
 
-    std::pair<bool, ValueType> get(const KeyType& key) {
+    const ValueType* get(const KeyType& key) {
         auto& keyMap = entries.template get<1>();
         auto l = keyMap.find(key);
         if (l != keyMap.end()) {
             entries.relocate(entries.end(), entries.iterator_to(*l));
-            return{ true, l->value };
+            return &l->value;
         }
-        return{ false, ValueType() };
+        return nullptr;
     }
 
     bool put(const KeyType& key, const ValueType& value) {
