@@ -1,6 +1,7 @@
 // LRUCacheTest.cpp : Defines the entry point for the console application.
 //
-
+#define USE_BOOST_CONTAINERS
+#define USE_BOOST_HASH
 #ifdef _MSC_VER 
 #define WINDOWS 1
 #define _CRT_NONSTDC_NO_WARNINGS 
@@ -157,8 +158,9 @@ private:
     template <typename IndexToValueMapping>
     void test1(IndexToValueMapping indToValue) {
         LRUCache<std::string, 
-            std::remove_cv<std::remove_reference<
-                decltype(indToValue(0))>::type>::type > lruCache(4);
+            typename std::remove_cv<
+                typename std::remove_reference<
+                    decltype(indToValue(0))>::type>::type > lruCache(4);
         for (size_t i = 0; i < testKeys.size(); i++) {
             lruCache.put(testKeys[i], indToValue(i));
             auto res = lruCache.get(testKeys[i]);
@@ -288,8 +290,14 @@ std::pair<std::vector<size_t>, std::vector<bool>> generateTestSequence(
     return{ samples,sampleActions };
 }
 
+#ifdef USE_BOOST_HASH
+template <typename KeyType>
+using HashFuncType = boost::hash<KeyType>;
+#else
 template <typename KeyType>
 using HashFuncType = std::hash<KeyType>;
+#endif
+
 
 template <typename KeyType, typename  ValueType>
 using LRUCache_V1 = LRUCacheV1::LRUCache<KeyType, ValueType, void, false>;

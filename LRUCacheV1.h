@@ -8,8 +8,13 @@
 #pragma once
 #include <functional>
 #include <vector>
+#ifdef USE_BOOST_CONTAINERS
+#include <boost/unordered_map.hpp>
+#include <boost/container/map.hpp>
+#else
 #include <unordered_map>
 #include <map>
+#endif
 #include <cassert>
 #include <type_traits>
 #include <boost/pool/pool_alloc.hpp>
@@ -18,19 +23,23 @@
 namespace LRUCacheV1 {
 template <typename KeyType, typename ValueType, 
     // std::map will be used if Hasher is void!
-    typename Hasher = std::hash<KeyType>, 
+    class Hasher = std::hash<KeyType>, 
     bool use_fast_allocator = false
 >
 class LRUCache {
     struct Entry;
     static constexpr bool use_unordered_map = 
-       !std::is_void<typename Hasher>::value;
+       !std::is_void<Hasher>::value;
 
     using MapPairAllocatorType = typename std::conditional<use_fast_allocator,
         boost::fast_pool_allocator<std::pair<const KeyType, size_t>>,
         std::allocator<std::pair<const KeyType, size_t>>
     >::type;
+#ifdef USE_BOOST_CONTAINERS
+    using BaseOrderedMapType = boost::container::map<KeyType, size_t,
+#else
     using BaseOrderedMapType = std::map<KeyType, size_t,
+#endif
         std::less<KeyType>,
         MapPairAllocatorType
     >;
@@ -40,8 +49,12 @@ class LRUCache {
         OrderedMapType(size_t) {}
     };
 
+#ifdef USE_BOOST_CONTAINERS
+    using UnorderedMapType = boost::unordered_map<KeyType, size_t,
+#else
     using UnorderedMapType = std::unordered_map<KeyType, size_t,
-        typename Hasher,
+#endif
+        Hasher,
         std::equal_to<KeyType>,
         MapPairAllocatorType
     >;
@@ -98,20 +111,32 @@ public:
         assert(keys.size() <= maxCacheSize);
         // keys.size() + 1 since the first entry is a sentinel
         return finishPutOperation(
+#ifdef USE_BOOST_CONTAINERS
+            keys.emplace(key, keys.size() + 1), std::move(ValueType(value)));
+#else
             keys.try_emplace(key, keys.size() + 1), std::move(ValueType(value)));
+#endif
     }
     bool put(const KeyType& key, ValueType&& value) {
         assert(keys.size() <= maxCacheSize);
         // keys.size() + 1 since the first entry is a sentinel
         return finishPutOperation(
+#ifdef USE_BOOST_CONTAINERS
+            keys.emplace(key, keys.size() + 1), std::move(value));
+#else
             keys.try_emplace(key, keys.size() + 1), std::move(value));
+#endif
     }
 
     bool put(KeyType&& key,const ValueType& value) {
         assert(keys.size() <= maxCacheSize);
         // keys.size() + 1 since the first entry is a sentinel
         return finishPutOperation(
+#ifdef USE_BOOST_CONTAINERS
+            keys.emplace(std::move(key), keys.size() + 1),
+#else
             keys.try_emplace(std::move(key), keys.size() + 1), 
+#endif
             std::move(ValueType(value)));
     }
 
@@ -119,7 +144,11 @@ public:
         assert(keys.size() <= maxCacheSize);
         // keys.size() + 1 since the first entry is a sentinel
         return finishPutOperation(
-            keys.try_emplace(std::move(key), keys.size() + 1),std::move(value));
+#ifdef USE_BOOST_CONTAINERS
+            keys.emplace(std::move(key), keys.size() + 1), std::move(value));
+#else
+            keys.try_emplace(std::move(key), keys.size() + 1), std::move(value));
+#endif
     }
 private:
     bool finishPutOperation(

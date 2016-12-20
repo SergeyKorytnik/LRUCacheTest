@@ -20,13 +20,13 @@ namespace LRUCacheV4 {
 
 template <typename KeyType, typename ValueType, 
     // ordered_index will be used if Hasher is void!
-    typename Hasher = std::hash<KeyType>,
+    class Hasher = std::hash<KeyType>,
     bool use_fast_allocator = false
 >
 class LRUCache {
     struct Entry;
     static constexpr bool use_unordered_map =
-        !std::is_void<typename Hasher>::value;
+        !std::is_void<Hasher>::value;
 
     using AllocatorType = typename std::conditional<use_fast_allocator,
         boost::fast_pool_allocator<Entry>,

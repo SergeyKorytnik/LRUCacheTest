@@ -12,9 +12,15 @@
 //
 #pragma once
 #include <functional>
+#ifdef USE_BOOST_CONTAINERS
+#include <boost/unordered_map.hpp>
+#include <boost/container/map.hpp>
+#include <boost/container/list.hpp>
+#else
 #include <list>
 #include <unordered_map>
 #include <map>
+#endif
 #include <boost/pool/pool_alloc.hpp>
 #include <cassert>
 #include <type_traits>
@@ -24,18 +30,22 @@ namespace LRUCacheV2 {
 
 template <typename KeyType, typename ValueType, 
     // std::map will be used if Hasher is void!
-    typename Hasher = std::hash<KeyType>,
+    class Hasher = std::hash<KeyType>,
     bool use_fast_allocator = false
 >
 class LRUCache {
     struct Entry;
     static constexpr bool use_unordered_map =
-        !std::is_void<typename Hasher>::value;
+        !std::is_void<Hasher>::value;
     using MapPairAllocatorType = typename std::conditional<use_fast_allocator,
         boost::fast_pool_allocator<std::pair<const KeyType, Entry>>,
         std::allocator<std::pair<const KeyType, Entry>>
     >::type;
+#ifdef USE_BOOST_CONTAINERS
+    using BaseOrderedMapType = boost::container::map<KeyType, Entry,
+#else
     using BaseOrderedMapType = std::map<KeyType, Entry,
+#endif
         std::less<KeyType>,
         MapPairAllocatorType
     >;
@@ -43,7 +53,11 @@ class LRUCache {
         // to unify API with std::unordered_map<KeyType, Entry>
         OrderedMapType(size_t) {}
     };
+#ifdef USE_BOOST_CONTAINERS
+    using UnorderedMapType = boost::unordered_map<KeyType, Entry,
+#else
     using UnorderedMapType = std::unordered_map<KeyType, Entry,
+#endif
         Hasher,
         std::equal_to<KeyType>,
         MapPairAllocatorType
@@ -57,7 +71,12 @@ class LRUCache {
         std::allocator<typename MapType::iterator>
     >::type;
 
+#ifdef USE_BOOST_CONTAINERS
+    using QueueType = boost::container::list<
+        typename MapType::iterator, QueueItemAllocator>;
+#else
     using QueueType = std::list<typename MapType::iterator, QueueItemAllocator>;
+#endif
 public:
     LRUCache() = delete;
     LRUCache(const LRUCache&) = delete;
@@ -112,7 +131,12 @@ public:
 
 private:
     bool put(KeyType&& key, Entry&& e) {
+#ifdef USE_BOOST_CONTAINERS
+        auto l = entries.insert(
+            typename MapType::value_type(std::move(key), e));
+#else
         auto l = entries.try_emplace(std::move(key), std::move(e));
+#endif
         if (l.second == false) { // the key already exist in the map
             l.first->second.value = std::move(e.value);
             pushToQueueEnd(l.first->second.queueLocation);
