@@ -34,6 +34,10 @@ template <typename KeyType, typename ValueType,
     bool use_fast_allocator = false
 >
 class LRUCache {
+public:
+    using value_type = ValueType;
+    using key_type = KeyType;
+private:
     struct Entry;
     static constexpr bool use_unordered_map =
         !std::is_void<Hasher>::value;
@@ -65,17 +69,16 @@ class LRUCache {
 
     using MapType = typename std::conditional<use_unordered_map,
         UnorderedMapType, OrderedMapType>::type;
-
+    struct QueueItem;
     using QueueItemAllocator = typename std::conditional<use_fast_allocator,
-        boost::fast_pool_allocator<typename MapType::iterator>,
-        std::allocator<typename MapType::iterator>
+        boost::fast_pool_allocator<QueueItem>,
+        std::allocator<QueueItem>
     >::type;
-
 #ifdef USE_BOOST_CONTAINERS
     using QueueType = boost::container::list<
-        typename MapType::iterator, QueueItemAllocator>;
+        QueueItem, QueueItemAllocator>;
 #else
-    using QueueType = std::list<typename MapType::iterator, QueueItemAllocator>;
+    using QueueType = std::list<QueueItem, QueueItemAllocator>;
 #endif
 public:
     LRUCache() = delete;
@@ -143,11 +146,11 @@ private:
             return false;
         }
         if (entries.size() > maxCacheSize) {
-            auto eloc = lruQueue.front();
+            auto eloc = lruQueue.front().mapLocation;
             lruQueue.pop_front();
             entries.erase(eloc);
         }
-        lruQueue.push_back(l.first);
+        lruQueue.emplace_back(l.first);
         l.first->second.queueLocation = --lruQueue.end();
         return true;
     }
@@ -161,6 +164,11 @@ private:
         Entry(ValueType&& aValue) : value(std::move(aValue)) {}
         ValueType value;
         typename QueueType::iterator queueLocation;
+    };
+
+    struct QueueItem {
+        QueueItem(const typename MapType::iterator& it) : mapLocation(it) {}
+        typename MapType::iterator mapLocation;
     };
     MapType entries;
     QueueType lruQueue;

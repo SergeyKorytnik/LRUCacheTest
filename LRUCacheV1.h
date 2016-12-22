@@ -27,6 +27,10 @@ template <typename KeyType, typename ValueType,
     bool use_fast_allocator = false
 >
 class LRUCache {
+public:
+    using value_type = ValueType;
+    using key_type = KeyType;
+private:
     struct Entry;
     static constexpr bool use_unordered_map = 
        !std::is_void<Hasher>::value;

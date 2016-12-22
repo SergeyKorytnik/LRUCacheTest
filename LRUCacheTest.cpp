@@ -1,7 +1,7 @@
 // LRUCacheTest.cpp : Defines the entry point for the console application.
 //
-#define USE_BOOST_CONTAINERS
-#define USE_BOOST_HASH
+//#define USE_BOOST_CONTAINERS
+//#define USE_BOOST_HASH
 #ifdef _MSC_VER 
 #define WINDOWS 1
 #define _CRT_NONSTDC_NO_WARNINGS 
@@ -62,7 +62,10 @@ public:
         const std::vector<bool>& sampleActions
     ) = 0;
 
-    void validateTestResults(const PerformanceTestResults& r0) const {
+    void validateTestResults(
+        const std::vector<PerformanceTestResults>& testResults,
+        const PerformanceTestResults& r0
+    )const {
         if (testResults.empty())
             return;
         for (const auto& r : testResults) {
@@ -82,9 +85,9 @@ public:
         }
     }
 
-    void printTestResults() const{
-        if (testResults.empty())
-            return;
+    static void printTestResults(
+        const std::vector<PerformanceTestResults>& testResults
+    ) {
         float averageDuration = 0.0;
         for (auto& r : testResults) {
             averageDuration += r.testDuration;
@@ -99,21 +102,23 @@ public:
             }
             stdDeviation = std::sqrt(stdDeviation / (numSamples - 1));
         }
-        std::cout << getTestDescription();
-        std::cout << '\t' << std::setprecision(6) << averageDuration;
+        std::cout << std::setprecision(6) << averageDuration;
         std::cout << '\t' << std::setprecision(4) << stdDeviation;
 //        for (auto& r : testResults) {
 //            std::cout << ", " << r.testDuration;
 //        }
-        std::cout << '\n';
     }
 
-    const std::vector<PerformanceTestResults>& getTestResults() const {
-        return testResults;
+    const std::vector<PerformanceTestResults>& getTestResults1() const {
+        return testResults[0];
+    }
+    const std::vector<PerformanceTestResults>& getTestResults2() const {
+        return testResults[1];
     }
 
 protected:
-    std::vector<PerformanceTestResults> testResults;
+    // 0th for LRUCache<size_t,size_t> 1st for LRUCache<std::string,std::string>
+    std::vector<PerformanceTestResults> testResults[2]; 
 };
 
 namespace {
@@ -140,18 +145,17 @@ public:
         const std::vector<bool>& sampleActions
     ) override
     {
-        auto startTime = std::chrono::high_resolution_clock::now();
-        auto result = performanceTest(cacheSize, samples, sampleActions);
-        auto finishTime = std::chrono::high_resolution_clock::now();
-        using FpMilliseconds =
-            std::chrono::duration<float, std::chrono::milliseconds::period>;
-        result.testDuration = FpMilliseconds(finishTime - startTime).count();
-        //std::cout << result.testDuration << ", "
-        //    << result.cacheHitCount << ", "
-        //    << result.cacheMissCount << ", "
-        //    << result.keyInsertionCount << ", "
-        //    << result.totalEntryInsertionCount << '\n';
-        testResults.emplace_back(result);
+        auto tests = { performanceTest1 , performanceTest2 };
+        size_t i = 0;
+        for (auto perfTest : tests) {
+            auto startTime = std::chrono::high_resolution_clock::now();
+            auto result = perfTest(cacheSize, samples, sampleActions);
+            auto finishTime = std::chrono::high_resolution_clock::now();
+            using FpMilliseconds =
+                std::chrono::duration<float, std::chrono::milliseconds::period>;
+            result.testDuration = FpMilliseconds(finishTime - startTime).count();
+            testResults[i++].emplace_back(result);
+        }
     }
 
 private:
@@ -206,7 +210,7 @@ private:
     }
 
 
-    static PerformanceTestResults performanceTest(
+    static PerformanceTestResults performanceTest1(
         size_t cacheSize,
         const std::vector<size_t>& samples,
         const std::vector<bool>& sampleActions
@@ -229,6 +233,45 @@ private:
                 auto res = lruCache.get(key);
                 if (res) {
                     if (*res != value)
+                        throw std::runtime_error("invalid value in cache");
+                    ++results.cacheHitCount;
+                }
+                else
+                    ++results.cacheMissCount;
+            }
+        }
+        return results;
+    }
+    // The differences from performanceTest1:
+    // 1) LRUCache<std::string,std::string> instead of LRUCache<size_t,size_t>
+    // 2) Just the first 10 percent of the sequence are used.
+    static PerformanceTestResults performanceTest2(
+        size_t cacheSize,
+        const std::vector<size_t>& samples,
+        const std::vector<bool>& sampleActions
+    ) {
+        assert(samples.size() == sampleActions.size());
+        LRUCacheTest::PerformanceTestResults results;
+        LRUCache<std::string, std::string> lruCache(cacheSize);
+        auto sampleIt = samples.begin();
+        auto sampleActionIt = sampleActions.begin();        
+        size_t numTrials = sampleActions.size() / 10;
+
+        for (size_t i = 0; i < numTrials; ++i) {
+            bool shouldAddNew = *sampleActionIt;
+            ++sampleActionIt;
+            size_t key = *sampleIt;
+            ++sampleIt;
+            size_t value = 2 * key;
+            if (shouldAddNew) {
+                if (lruCache.put(std::to_string(key), std::to_string(value)))
+                    ++results.keyInsertionCount;
+                ++results.totalEntryInsertionCount;
+            }
+            else {
+                auto res = lruCache.get(std::to_string(key));
+                if (res) {
+                    if (std::stoul(*res) != value)
                         throw std::runtime_error("invalid value in cache");
                     ++results.cacheHitCount;
                 }
@@ -401,14 +444,23 @@ void runPerformanceTests(
             t->runPerformanceTest(cacheSize, testSeq.first, testSeq.second);
         }
     }
-    std::cout << "\ndone\nvalidating results consistency..\n";
-    auto& testResult0 = tests.front()->getTestResults()[0];
+    std::cout << "\ndone\nvalidating LRUCache<size_t,size_t> test results consistency..\n";
+    auto& theResultToCompareWith1 = tests.front()->getTestResults1()[0];
     for (auto& t : tests) {
-        t->validateTestResults(testResult0);
+        t->validateTestResults(t->getTestResults1(), theResultToCompareWith1);
+    }
+    std::cout << "\ndone\n";
+    std::cout << "all LRUCache<size_t,size_t> tests reported the following statistic:\n";
+    theResultToCompareWith1.printStatistics();
+
+    std::cout << "validating LRUCache<std::string,std::string> test results consistency..\n";
+    auto& theResultToCompareWith2 = tests.front()->getTestResults2()[0];
+    for (auto& t : tests) {
+        t->validateTestResults(t->getTestResults2(), theResultToCompareWith2);
     }
     std::cout << "done\n";
-    std::cout << "all tests reported the following sequence statistic:\n";
-    testResult0.printStatistics();
+    std::cout << "all LRUCache<string,size_t> tests reported the following statistic:\n";
+    theResultToCompareWith2.printStatistics();
 }
 
 int main() {
@@ -447,15 +499,25 @@ int main() {
         runPerformanceTests(tests2, 64 * 1024, 16 * 1000000, 4 * 64 * 1024, 0.89, 0.33);
 
         std::cout << "The first test sequence results summary:\n";
-        std::cout << "Test Name, Average Running time(ms), Standard Deviation(ms)\n";
+        std::cout << "Test Name\tAv. Time1(ms)\tSt. Dev(ms)\tAv. Time2(ms)\tSt. Dev(ms)\n";
         for (auto& t : tests) {
-            t->printTestResults();
+            std::cout << t->getTestDescription() << '\t';
+            t->printTestResults(t->getTestResults1());
+            std::cout << '\t';
+            t->printTestResults(t->getTestResults2());
+            std::cout << '\n';
         }
         std::cout << "The second test sequence results summary:\n";
-        std::cout << "Test Name, Average Running time(ms), Standard Deviation(ms)\n";
+        std::cout << "Test Name\tAv. Time1(ms)\tSt. Dev(ms)\tAv. Time2(ms)\tSt. Dev(ms)\n";
         for (auto& t : tests2) {
-            t->printTestResults();
+            std::cout << t->getTestDescription() << '\t';
+            t->printTestResults(t->getTestResults1());
+            std::cout << '\t';
+            t->printTestResults(t->getTestResults2());
+            std::cout << '\n';
         }
+        std::cout << "Time1 is for LRUCache<size_t,size_t> and Time2 for LRUCache<std::string,std::string>\n";
+        std::cout << "Just the first 10% percent of samples are used for LRUCache<std::string,std::string>\n";
     }
     catch (std::exception& e) {
         std::cerr << "An exception has occurred: " << e.what() << '\n';

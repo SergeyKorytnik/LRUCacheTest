@@ -248,3 +248,8 @@ ModelManifest.xml
 /1_x64.csv
 /1_macos.txt
 /MacOS_LRUCacheTest_Results_20161220.txt
+/MacOS_Clang_LRUCach_testresults.txt
+/MacOS_Clang_LRUCach_testresults_bh_bc.txt
+/MacOS_Clang_LRUCach_testresults_bh_bc_gcc62.txt
+/MacOS_Clang_LRUCach_testresults_bh_gcc62.txt
+/MacOS_Clang_LRUCach_testresults_gcc62.txt

@@ -17,8 +17,11 @@ template <typename KeyType, typename ValueType,
     // std::map will be used if Hasher is void!
     typename Hasher = std::hash<KeyType>
 >
-class LRUCache
-{
+class LRUCache {
+public:
+    using value_type = ValueType;
+    using key_type = KeyType;
+private:
     struct Entry;
     struct EntryKeyAccessor;
     using QueueType = boost::intrusive::list<Entry>;

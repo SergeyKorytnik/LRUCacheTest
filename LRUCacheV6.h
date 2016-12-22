@@ -16,6 +16,10 @@ template <typename KeyType, typename ValueType,
     typename Hasher = std::hash<KeyType>
 >
 class LRUCache {
+public:
+    using value_type = ValueType;
+    using key_type = KeyType;
+private:
     struct Entry;
     using QueueType = boost::intrusive::list<Entry>;
     using MapType = emilib::HashMap<KeyType, Entry,Hasher>;

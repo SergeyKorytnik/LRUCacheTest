@@ -15,6 +15,10 @@ template <typename KeyType, typename ValueType,
     typename Hasher = std::hash<KeyType>
 >
 class LRUCache {
+public:
+    using value_type = ValueType;
+    using key_type = KeyType;
+private:
     struct Entry;
     using MapType = emilib::HashMap<KeyType, size_t, Hasher>;
 public:
