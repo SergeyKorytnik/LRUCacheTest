@@ -459,7 +459,7 @@ void runPerformanceTests(
         t->validateTestResults(t->getTestResults2(), theResultToCompareWith2);
     }
     std::cout << "done\n";
-    std::cout << "all LRUCache<string,size_t> tests reported the following statistic:\n";
+    std::cout << "all LRUCache<string,std::string> tests reported the following statistic:\n";
     theResultToCompareWith2.printStatistics();
 }
 
