@@ -1,7 +1,5 @@
 // LRUCacheTest.cpp : Defines the entry point for the console application.
 //
-//#define USE_BOOST_CONTAINERS
-//#define USE_BOOST_HASH
 #ifdef _MSC_VER 
 #define WINDOWS 1
 #define _CRT_NONSTDC_NO_WARNINGS 
@@ -135,8 +133,19 @@ public:
 
     void runSanityTests() override
     {
-        test1([&](size_t index)->const std::string& {return testValues[index]; });
-        test1([&](size_t index) {return 2*index; });
+        test1([&](size_t index)->const std::string& {
+                return testValues[index]; 
+            },
+            std::equal_to<std::string>());
+        test1([&](size_t index) {return 2*index; }, std::equal_to<size_t>());
+        test1([&](size_t index)->std::unique_ptr<double> {
+                return std::make_unique<double>(
+                    2.0 * static_cast<double>(index) );
+            },
+            [](const auto& rhs, const auto& lhs)->bool {
+                return *rhs == *lhs;
+            }
+        );
     }
 
     void runPerformanceTest(
@@ -159,8 +168,8 @@ public:
     }
 
 private:
-    template <typename IndexToValueMapping>
-    void test1(IndexToValueMapping indToValue) {
+    template <typename IndexToValueMapping, typename EqualFunc>
+    void test1(IndexToValueMapping indToValue, EqualFunc equalFunc) {
         LRUCache<std::string, 
             typename std::remove_cv<
                 typename std::remove_reference<
@@ -170,16 +179,12 @@ private:
             auto res = lruCache.get(testKeys[i]);
             check(res != nullptr,
                 "lruCache.get can't find the most recently added entry");
-            if(*res != indToValue(i)) {
-                std::cout << "*res = " << *res << '\n';
-                std::cout << "indToValue(i) = " << indToValue(i) << '\n';
-            }
-            check(*res == indToValue(i),
+            check(equalFunc(*res, indToValue(i)),
                 "1: lruCache.get returned incorrect value");
             check(lruCache.get(testKeys[0]) != nullptr,
                 "lruCache.get can't find the second most recently used entry");
         }
-        check(*lruCache.get(testKeys[0]) == indToValue(0),
+        check(equalFunc(*lruCache.get(testKeys[0]), indToValue(0)),
             "2: lruCache.get returned incorrect value");
         check(lruCache.get(testKeys[1]) == nullptr,
             "an entry is still in cache, but it is expected to be already replaced by a more recent one");
@@ -189,15 +194,15 @@ private:
             "an entry is still in cache, but it is expected to be already replaced by a more recent one");
         check(lruCache.get(testKeys[4]) != nullptr,
             "lruCache.get can't find 4th MRU entry");
-        check(*lruCache.get(testKeys[4]) == indToValue(4),
+        check(equalFunc(*lruCache.get(testKeys[4]), indToValue(4)),
             "3: lruCache.get returned incorrect value");
         check(lruCache.get(testKeys[5]) != nullptr,
             "lruCache.get can't find 3rd MRU entry");
-        check(*lruCache.get(testKeys[5]) == indToValue(5),
+        check(equalFunc(*lruCache.get(testKeys[5]), indToValue(5)),
             "4: lruCache.get returned incorrect value");
         check(lruCache.get(testKeys[6]) != nullptr,
             "lruCache.get can't find 2nd MRU entry");
-        check(*lruCache.get(testKeys[6]) == indToValue(6),
+        check(equalFunc(*lruCache.get(testKeys[6]), indToValue(6)),
             "5: lruCache.get returned incorrect value");
         lruCache.put(testKeys[1], indToValue(1));
         check(lruCache.get(testKeys[0]) == nullptr,
@@ -205,7 +210,7 @@ private:
         lruCache.put(testKeys[1], indToValue(0));
         check(lruCache.get(testKeys[1]) != nullptr,
             "lruCache.get can't find the most recently added entry");
-        check(*lruCache.get(testKeys[1]) == indToValue(0),
+        check(equalFunc(*lruCache.get(testKeys[1]), indToValue(0)),
             "6: lruCache.get returned incorrect value");
     }
 
@@ -333,82 +338,178 @@ std::pair<std::vector<size_t>, std::vector<bool>> generateTestSequence(
     return{ samples,sampleActions };
 }
 
-#ifdef USE_BOOST_HASH
-template <typename KeyType>
-using HashFuncType = boost::hash<KeyType>;
-#else
-template <typename KeyType>
-using HashFuncType = std::hash<KeyType>;
-#endif
+// The legend for types below 
+//    LRUCache_VXabcd
+//       X - 1..6 (version)
+//       a - o/u (ordered map or unordered map)
+//       b - v/s/b (no hash, std::hash, boost::hash)
+//       c - s/f (std::allocator, boost::fast_pool_allocator)
+//       d - s/b (std::map + std::unordered_map + std::list vs 
+//                boost::container::map + boost::unordered + boost::container::list)
+//  
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V1ovss = LRUCacheV1::LRUCache<
+    KeyType, ValueType, void, false, false>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V1usss = LRUCacheV1::LRUCache<
+    KeyType, ValueType, std::hash<KeyType>, false,false>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V1ubss = LRUCacheV1::LRUCache<
+    KeyType, ValueType, boost::hash<KeyType>, false, false>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V1ovfs = LRUCacheV1::LRUCache<
+    KeyType, ValueType, void, true, false>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V1usfs = LRUCacheV1::LRUCache<
+    KeyType, ValueType, std::hash<KeyType>, true, false>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V1ubfs = LRUCacheV1::LRUCache<
+    KeyType, ValueType, boost::hash<KeyType>, true, false>;
+template <typename KeyType, typename  ValueType>
+
+using LRUCache_V1ovsb = LRUCacheV1::LRUCache<
+    KeyType, ValueType, void, false, true>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V1ussb = LRUCacheV1::LRUCache<
+    KeyType, ValueType, std::hash<KeyType>, false, true>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V1ubsb = LRUCacheV1::LRUCache<
+    KeyType, ValueType, boost::hash<KeyType>, false, true>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V1ovfb = LRUCacheV1::LRUCache<
+    KeyType, ValueType, void, true, true>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V1usfb = LRUCacheV1::LRUCache<
+    KeyType, ValueType, std::hash<KeyType>, true, true>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V1ubfb = LRUCacheV1::LRUCache<
+    KeyType, ValueType, boost::hash<KeyType>, true, true>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ovss = LRUCacheV2::LRUCache
+<KeyType, ValueType, void, false, false>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2usss = LRUCacheV2::LRUCache<
+    KeyType, ValueType, std::hash<KeyType>, false, false>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ubss = LRUCacheV2::LRUCache<
+    KeyType, ValueType, boost::hash<KeyType>, false, false>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ovfs = LRUCacheV2::LRUCache
+<KeyType, ValueType, void, true, false>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2usfs = LRUCacheV2::LRUCache<
+    KeyType, ValueType, std::hash<KeyType>, true, false>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ubfs = LRUCacheV2::LRUCache<
+    KeyType, ValueType, boost::hash<KeyType>, true, false>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ovsb = LRUCacheV2::LRUCache
+<KeyType, ValueType, void, false, true>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ussb = LRUCacheV2::LRUCache<
+    KeyType, ValueType, std::hash<KeyType>, false, true>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ubsb = LRUCacheV2::LRUCache<
+    KeyType, ValueType, boost::hash<KeyType>, false, true>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ovfb = LRUCacheV2::LRUCache
+<KeyType, ValueType, void, true, true>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2usfb = LRUCacheV2::LRUCache<
+    KeyType, ValueType, std::hash<KeyType>, true, true>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ubfb = LRUCacheV2::LRUCache<
+    KeyType, ValueType, boost::hash<KeyType>, true, true>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V3ov = LRUCacheV3::LRUCache<KeyType, ValueType, void>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V3us = LRUCacheV3::LRUCache<
+    KeyType, ValueType, std::hash<KeyType>>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V3ub = LRUCacheV3::LRUCache<
+    KeyType, ValueType, boost::hash<KeyType>>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V4ovs = LRUCacheV4::LRUCache<KeyType, ValueType, void, false>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V4uss = LRUCacheV4::LRUCache<
+    KeyType, ValueType, std::hash<KeyType>, false>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V4ubs = LRUCacheV4::LRUCache<
+    KeyType, ValueType, boost::hash<KeyType>, false>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V4ovf = LRUCacheV4::LRUCache<KeyType, ValueType, void, true>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V4usf = LRUCacheV4::LRUCache<
+    KeyType, ValueType, std::hash<KeyType>, true>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V4ubf = LRUCacheV4::LRUCache<
+    KeyType, ValueType, boost::hash<KeyType>, true>;
 
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V1 = LRUCacheV1::LRUCache<KeyType, ValueType, void, false>;
+using LRUCache_V5s = LRUCacheV5::LRUCache<
+    KeyType, ValueType, std::hash<KeyType>>;
 template <typename KeyType, typename  ValueType>
-using LRUCache_V1u = LRUCacheV1::LRUCache<
-    KeyType, ValueType, HashFuncType<KeyType>, false>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V1a = LRUCacheV1::LRUCache<KeyType, ValueType, void, true>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V1ua = LRUCacheV1::LRUCache<
-    KeyType, ValueType, HashFuncType<KeyType>, true>;
+using LRUCache_V5b = LRUCacheV5::LRUCache<
+    KeyType, ValueType, boost::hash<KeyType>>;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V2 = LRUCacheV2::LRUCache<KeyType, ValueType, void, false>;
+using LRUCache_V6s = LRUCacheV6::LRUCache<
+    KeyType, ValueType, std::hash<KeyType>>;
 template <typename KeyType, typename  ValueType>
-using LRUCache_V2u = LRUCacheV2::LRUCache<
-    KeyType, ValueType, HashFuncType<KeyType>, false>;
-
-template <typename KeyType, typename  ValueType>
-using LRUCache_V2a = LRUCacheV2::LRUCache<KeyType, ValueType, void, true>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V2ua = LRUCacheV2::LRUCache<
-    KeyType, ValueType, HashFuncType<KeyType>, true>;
-
-template <typename KeyType, typename  ValueType>
-using LRUCache_V3 = LRUCacheV3::LRUCache<KeyType, ValueType, void>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V3u = LRUCacheV3::LRUCache<
-    KeyType, ValueType, HashFuncType<KeyType>>;
-
-template <typename KeyType, typename  ValueType>
-using LRUCache_V4 = LRUCacheV4::LRUCache<KeyType, ValueType, void, false>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V4u = LRUCacheV4::LRUCache<
-    KeyType, ValueType, HashFuncType<KeyType>, false>;
-
-template <typename KeyType, typename  ValueType>
-using LRUCache_V4a = LRUCacheV4::LRUCache<KeyType, ValueType, void, true>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V4ua = LRUCacheV4::LRUCache<
-    KeyType, ValueType, HashFuncType<KeyType>, true>;
-
-template <typename KeyType, typename  ValueType>
-using LRUCache_V5 = LRUCacheV5::LRUCache<
-    KeyType, ValueType, HashFuncType<KeyType>>;
-
-template <typename KeyType, typename  ValueType>
-using LRUCache_V6 = LRUCacheV6::LRUCache<
-    KeyType, ValueType, HashFuncType<KeyType>>;
+using LRUCache_V6b = LRUCacheV6::LRUCache<
+    KeyType, ValueType, boost::hash<KeyType>>;
 
 std::vector<std::unique_ptr<LRUCacheTest>> constructTestVector() {
     std::unique_ptr<LRUCacheTest> init_list[] = {
-        std::make_unique<LRUCacheTestImpl<LRUCache_V1> >(),
-        std::make_unique<LRUCacheTestImpl<LRUCache_V1u> >(),
-        std::make_unique<LRUCacheTestImpl<LRUCache_V1a> >(),
-        std::make_unique<LRUCacheTestImpl<LRUCache_V1ua> >(),
-        std::make_unique<LRUCacheTestImpl<LRUCache_V2> >(),
-        std::make_unique<LRUCacheTestImpl<LRUCache_V2u> >(),
-        std::make_unique<LRUCacheTestImpl<LRUCache_V2a> >(),
-        std::make_unique<LRUCacheTestImpl<LRUCache_V2ua> >(),
-        std::make_unique<LRUCacheTestImpl<LRUCache_V3> >(),
-        std::make_unique<LRUCacheTestImpl<LRUCache_V3u> >(),
-        std::make_unique<LRUCacheTestImpl<LRUCache_V4> >(),
-        std::make_unique<LRUCacheTestImpl<LRUCache_V4u> >(),
-        std::make_unique<LRUCacheTestImpl<LRUCache_V4a> >(),
-        std::make_unique<LRUCacheTestImpl<LRUCache_V4ua> >(),
-        std::make_unique<LRUCacheTestImpl<LRUCache_V5> >(),
-        std::make_unique<LRUCacheTestImpl<LRUCache_V6> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1ovsb> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1ovfb> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1ovss> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1ovfs> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2ovsb> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2ovfb> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2ovss> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2ovfs> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V3ov> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V4ovs> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V4ovf> >(),
+        // hash based implementations of LRUCache are below
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1usss> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1ubss> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1usfs> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1ubfs> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1ussb> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1ubsb> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1usfb> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1ubfb> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2usss> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2ubss> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2usfs> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2ubfs> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2ussb> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2ubsb> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2usfb> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2ubfb> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V3us> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V3ub> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V4uss> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V4ubs> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V4usf> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V4ubf> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V5s> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V5b> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V6s> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V6b> >(),
     };
     return std::vector<std::unique_ptr<LRUCacheTest>>(
         std::make_move_iterator(std::begin(init_list)),
@@ -435,7 +536,8 @@ void runPerformanceTests(
     for (size_t i = 0; i < testPermutation.size(); i++)
         testPermutation[i] = i;
     for (int i = 0; i < 5; i++) {
-        std::random_shuffle(testPermutation.begin(), testPermutation.end());
+        std::shuffle(testPermutation.begin(), testPermutation.end(), 
+            std::mt19937(std::random_device()()));
         std::cout << "\nIteration #" << i;
         for (auto j : testPermutation) {
             auto& t = tests[j];
@@ -444,23 +546,28 @@ void runPerformanceTests(
             t->runPerformanceTest(cacheSize, testSeq.first, testSeq.second);
         }
     }
-    std::cout << "\ndone\nvalidating LRUCache<size_t,size_t> test results consistency..\n";
-    auto& theResultToCompareWith1 = tests.front()->getTestResults1()[0];
-    for (auto& t : tests) {
-        t->validateTestResults(t->getTestResults1(), theResultToCompareWith1);
+    
+    if (!tests.front()->getTestResults1().empty()) {
+        std::cout << "\ndone\nvalidating LRUCache<size_t,size_t> test results consistency..\n";
+        auto& theResultToCompareWith1 = tests.front()->getTestResults1()[0];
+        for (auto& t : tests) {
+            t->validateTestResults(t->getTestResults1(), theResultToCompareWith1);
+        }
+        std::cout << "\ndone\n";
+        std::cout << "all LRUCache<size_t,size_t> tests reported the following statistic:\n";
+        theResultToCompareWith1.printStatistics();
     }
-    std::cout << "\ndone\n";
-    std::cout << "all LRUCache<size_t,size_t> tests reported the following statistic:\n";
-    theResultToCompareWith1.printStatistics();
 
-    std::cout << "validating LRUCache<std::string,std::string> test results consistency..\n";
-    auto& theResultToCompareWith2 = tests.front()->getTestResults2()[0];
-    for (auto& t : tests) {
-        t->validateTestResults(t->getTestResults2(), theResultToCompareWith2);
+    if (!tests.front()->getTestResults2().empty()) {
+        std::cout << "validating LRUCache<std::string,std::string> test results consistency..\n";
+        auto& theResultToCompareWith2 = tests.front()->getTestResults2()[0];
+        for (auto& t : tests) {
+            t->validateTestResults(t->getTestResults2(), theResultToCompareWith2);
+        }
+        std::cout << "done\n";
+        std::cout << "all LRUCache<string,std::string> tests reported the following statistic:\n";
+        theResultToCompareWith2.printStatistics();
     }
-    std::cout << "done\n";
-    std::cout << "all LRUCache<string,std::string> tests reported the following statistic:\n";
-    theResultToCompareWith2.printStatistics();
 }
 
 int main() {
@@ -469,7 +576,8 @@ int main() {
         std::time_t t = std::time(nullptr);
         std::cout << "local time: " << std::put_time(std::localtime(&t), "%F %T %z") << '\n'; 
 #ifdef __clang__
-        std::cout << "Compiler: Clang(" << __clang__ << ")\n";
+        std::cout << "Compiler: Clang(" << __clang__  << ' ' 
+            << __clang_version__ << ")\n";
 #elif defined(__GNUC__)
         std::cout << "Compiler: GNU C++ (" << __GNUC__ << '.' << __GNUC_MINOR__ << ")\n";
 #endif
@@ -498,13 +606,12 @@ int main() {
         auto tests2 = constructTestVector();
         runPerformanceTests(tests2, 64 * 1024, 16 * 1000000, 4 * 64 * 1024, 0.89, 0.33);
 
+        std::cout << "The performance test results for LRUCache<size_t,size_t>\n";
         std::cout << "The first test sequence results summary:\n";
-        std::cout << "Test Name\tAv. Time1(ms)\tSt. Dev(ms)\tAv. Time2(ms)\tSt. Dev(ms)\n";
+        std::cout << "Test Name\tAv. Time(ms)\tSt. Dev(ms)\n";
         for (auto& t : tests) {
             std::cout << t->getTestDescription() << '\t';
             t->printTestResults(t->getTestResults1());
-            std::cout << '\t';
-            t->printTestResults(t->getTestResults2());
             std::cout << '\n';
         }
         std::cout << "The second test sequence results summary:\n";
@@ -512,12 +619,26 @@ int main() {
         for (auto& t : tests2) {
             std::cout << t->getTestDescription() << '\t';
             t->printTestResults(t->getTestResults1());
-            std::cout << '\t';
+            std::cout << '\n';
+        }
+        std::cout << "The performance test results for "
+            "LRUCache<std::string,std::string>\n";
+        std::cout << "Just the first 10% percent of samples are used"
+            " for LRUCache<std::string,std::string>\n";
+        std::cout << "The first test sequence results summary:\n";
+        std::cout << "Test Name\tAv. Time(ms)\tSt. Dev(ms)\n";
+        for (auto& t : tests) {
+            std::cout << t->getTestDescription() << '\t';
             t->printTestResults(t->getTestResults2());
             std::cout << '\n';
         }
-        std::cout << "Time1 is for LRUCache<size_t,size_t> and Time2 for LRUCache<std::string,std::string>\n";
-        std::cout << "Just the first 10% percent of samples are used for LRUCache<std::string,std::string>\n";
+        std::cout << "The second test sequence results summary:\n";
+        std::cout << "Test Name\tAv. Time1(ms)\tSt. Dev(ms)\tAv. Time2(ms)\tSt. Dev(ms)\n";
+        for (auto& t : tests2) {
+            std::cout << t->getTestDescription() << '\t';
+            t->printTestResults(t->getTestResults2());
+            std::cout << '\n';
+        }
     }
     catch (std::exception& e) {
         std::cerr << "An exception has occurred: " << e.what() << '\n';

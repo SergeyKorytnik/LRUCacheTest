@@ -1,3 +1,1 @@
-clang++ -D_LIBCPP_STD_VER=17 -O3 -std=c++14 -I. -I /usr/local/boost-1.62.0/include LRUCacheTest.cpp -o LRUCacheTest
-clang++ -DUSE_BOOST_HASH -D_LIBCPP_STD_VER=17 -O3 -std=c++14 -I. -I /usr/local/boost-1.62.0/include LRUCacheTest.cpp -o LRUCacheTest_bh
-clang++ -DUSE_BOOST_CONTAINERS -DUSE_BOOST_HASH -D_LIBCPP_STD_VER=17 -O3 -std=c++14 -I. -I /usr/local/boost-1.62.0/include LRUCacheTest.cpp -o LRUCacheTest_bh_bc
+clang++ -D_LIBCPP_STD_VER=17 -O3 -std=c++14 -I. -I /usr/local/boost-1.62.0/include LRUCacheTest.cpp -o LRUCacheTest_clang

@@ -33,16 +33,27 @@ public:
     {
         // add the sentinel
         entries.emplace_back(0, 0, ValueType(),typename MapType::iterator());
-        keys.reserve(cacheSize);
+        keyMap.reserve(cacheSize);
     }
 
-    static constexpr const char* description() {
-        return "LRUCache(emilib::HashMap + custom double linked list over vector)";
-    }
+    static const char* description() {
+        if (std::is_same < Hasher, std::hash<KeyType>>::value) {
+            return "LRUCache(emilib::HashMap + std::hash"
+                " + custom double linked list over vector)";
+        }
+        else if (std::is_same < Hasher, boost::hash<KeyType>>::value) {
+            return "LRUCache(emilib::HashMap + boost::hash"
+                " + custom double linked list over vector)";
+        }
+        else {
+            return "LRUCache(emilib::HashMap + unknown hash function"
+                " + custom double linked list over vector)";
+        }
+    }   
 
     const ValueType* get(const KeyType& key) {
-        assert(keys.size() <= maxCacheSize);
-        const size_t* l = keys.try_get(key);
+        assert(keyMap.size() <= maxCacheSize);
+        const size_t* l = keyMap.try_get(key);
         if (l != nullptr) {
             pushIntoQueue(*l);
             return &entries[*l].value;
@@ -50,14 +61,10 @@ public:
         return nullptr;
     }
 
-    bool put(const KeyType& key, const ValueType& value) {
-        return put(key, std::move(ValueType(value)));
-    }
-
-    bool put(const KeyType& key, ValueType&& value) {
-        assert(keys.size() <= maxCacheSize);
-        size_t entryIndex = keys.size() + 1; // +1 since the first entry is a sentinel
-        auto l = keys.insert(key, entryIndex);
+    bool put(const KeyType& key, ValueType value) {
+        assert(keyMap.size() <= maxCacheSize);
+        size_t entryIndex = keyMap.size() + 1; // +1 since the first entry is a sentinel
+        auto l = keyMap.insert(key, entryIndex);
         if (l.second == false) { // the key already exist in the map
             entryIndex = l.first->second;
             entries[entryIndex].value = std::move(value);
@@ -65,7 +72,7 @@ public:
             return false;
         }
 
-        assert(entryIndex == keys.size());
+        assert(entryIndex == keyMap.size());
         if (entryIndex <= maxCacheSize) {
             entries.emplace_back(entryIndex,
                 entryIndex,
@@ -75,7 +82,7 @@ public:
             entryIndex = entries[0].next;
             l.first->second = entryIndex;
             auto& e = entries[entryIndex];
-            keys.erase(e.keyLocation);
+            keyMap.erase(e.keyLocation);
             e.value = std::move(value);
             e.keyLocation = std::move(l.first);
         }
@@ -110,7 +117,7 @@ private:
     // the zeroth entry is a sentinel in the LRU list
     // so the maximum number of entries is maxCacheSize + 1
     std::vector<Entry> entries;
-    MapType keys;
+    MapType keyMap;
     const size_t maxCacheSize;
 };
 

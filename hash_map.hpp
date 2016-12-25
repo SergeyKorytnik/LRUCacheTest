@@ -349,6 +349,23 @@ public:
 		}
 	}
 
+    std::pair<iterator, bool> insert(const KeyT& key, ValueT&& value)
+    {
+        check_expand_need();
+
+        auto bucket = find_or_allocate(key);
+
+        if (_states[bucket] == State::FILLED) {
+            return{ iterator(this, bucket), false };
+        }
+        else {
+            _states[bucket] = State::FILLED;
+            new(_pairs + bucket) PairT(key, std::move(value));
+            _num_filled++;
+            return{ iterator(this, bucket), true };
+        }
+    }
+
 	std::pair<iterator, bool> insert(const std::pair<KeyT, ValueT>& p)
 	{
 		return insert(p.first, p.second);

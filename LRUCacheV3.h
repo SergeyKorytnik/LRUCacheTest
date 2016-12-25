@@ -48,9 +48,20 @@ public:
         entries.reserve(cacheSize);
     }
 
-    static constexpr const char* description() {
-        return "LRUCache(boost::intrusive::unordered_set + boost::intrusive::list)";
-    }
+    static const char* description() {
+        if (std::is_same < Hasher, std::hash<KeyType>>::value) {
+            return "LRUCache(boost::intrusive::unordered_set"
+                " + std::hash + boost::intrusive::list)";
+        }
+        else if (std::is_same < Hasher, boost::hash<KeyType>>::value) {
+            return "LRUCache(boost::intrusive::unordered_set"
+                " + boost::hash + boost::intrusive::list)";
+        }
+        else {
+            return "LRUCache(boost::intrusive::unordered_set"
+            " + unknown hash function + boost::intrusive::list)";
+        }
+    }   
 
     const ValueType* get(const KeyType& key) {
         auto l = keyMap.find(key);
@@ -62,39 +73,66 @@ public:
     }
 
     bool put(const KeyType& key, const ValueType& value) {
-        return put(std::move(KeyType(key)), std::move(ValueType(value)));
+        if (!put_CheckPhase(key, value))
+            return false;
+        put_CommitPhase(std::move(KeyType(key)), std::move(ValueType(value)));
+        return true;
     }
     bool put(const KeyType& key, ValueType&& value) {
-        return put(std::move(KeyType(key)), std::move(value));
+        if (!put_CheckPhase(key, std::move(value)))
+            return false;
+        put_CommitPhase(std::move(KeyType(key)), std::move(value));
+        return true;
     }
     bool put(KeyType&& key, const ValueType& value) {
-        return put(std::move(key), std::move(ValueType(value)));
+        if (!put_CheckPhase(key, value))
+            return false;
+        put_CommitPhase(std::move(key), std::move(ValueType(value)));
+        return true;
     }
 
     bool put(KeyType&& key, ValueType&& value) {
+        if (!put_CheckPhase(key, std::move(value)))
+            return false;
+        put_CommitPhase(std::move(key), std::move(value));
+        return true;
+    }
+private:
+    bool put_CheckPhase(const KeyType& key, const ValueType& value) {
+        auto l = keyMap.find(key);
+        if (l != keyMap.end()) {
+            l->value = value;
+            pushToQueueEnd(*l);
+            return false;
+        }
+        return true;
+    }
+    bool put_CheckPhase(const KeyType& key, ValueType&& value) {
         auto l = keyMap.find(key);
         if (l != keyMap.end()) {
             l->value = std::move(value);
             pushToQueueEnd(*l);
             return false;
         }
+        return true;
+    }
+    void put_CommitPhase(KeyType&& key, ValueType&& value) {
+        Entry* e;
         if (entries.size() == maxCacheSize) {
-            auto& e = lruQueue.front();
-            e.key = std::move(key);
-            e.value = std::move(value);
-            pushToQueueEnd(e);
-            keyMap.erase(keyMap.iterator_to(e));
-            keyMap.insert(e);
+            e = &lruQueue.front();
+            e->key = std::move(key);
+            e->value = std::move(value);
+            pushToQueueEnd(*e);
+            keyMap.erase(keyMap.iterator_to(*e));
         }
         else {
             entries.emplace_back(std::move(key), std::move(value));
-            auto& e = entries.back();
-            lruQueue.push_back(e);
-            keyMap.insert(e);
+            e = &entries.back();
+            lruQueue.push_back(*e);
         }
-        return true;
+        keyMap.insert(*e);
     }
-private:
+
     void pushToQueueEnd(Entry& e) {
         lruQueue.splice(lruQueue.end(), lruQueue,
             QueueType::s_iterator_to(e));

@@ -33,39 +33,51 @@ public:
 
     LRUCache(size_t cacheSize) : maxCacheSize(cacheSize)        
     {
-        keys.reserve(cacheSize);
+        keyMap.reserve(cacheSize);
     }
 
-    static constexpr const char* description() {
-        return "LRUCache(emilib::HashMap + boost::intrusive::list)";
+    static const char* description() {
+        if (std::is_same < Hasher, std::hash<KeyType>>::value) {
+            return "LRUCache(emilib::HashMap + std::hash"
+                " + boost::intrusive::list)";
+        }
+        else if (std::is_same < Hasher, boost::hash<KeyType>>::value) {
+            return "LRUCache(emilib::HashMap + boost::hash"
+                " + boost::intrusive::list)";
+        }
+        else {
+            return "LRUCache(emilib::HashMap + unknown hash function"
+                " + boost::intrusive::list)";
+        }
     }
 
     const ValueType* get(const KeyType& key) {
-        assert(keys.size() <= maxCacheSize);
-        auto l = keys.find(key);
-        if (l != keys.end()) {
+        assert(keyMap.size() <= maxCacheSize);
+        auto l = keyMap.find(key);
+        if (l != keyMap.end()) {
             pushToQueueEnd(l->second);
             return &l->second.value;
         }
         return nullptr;
     }
 
-    bool put(const KeyType& key, const ValueType& value) {
-        assert(keys.size() <= maxCacheSize);
-        auto l = keys.insert(key, Entry(value));
-        if (l.second == false) { // the key already exist in the map
-            auto& e = l.first->second;
-            e.value = value;
-            pushToQueueEnd(e);
+    bool put(const KeyType& key, ValueType value) {
+        assert(keyMap.size() <= maxCacheSize);
+        Entry* p = keyMap.try_get(key);
+        if (p) { // the key already exist in the map
+            p->value = std::move(value);
+            pushToQueueEnd(*p);
             return false;
         }
 
-        if (keys.size() > maxCacheSize) {
+        if (keyMap.size() >= maxCacheSize) {
             auto& e = lruQueue.front();
             lruQueue.pop_front();
-            keys.erase(e.keyLocation);
+            keyMap.erase(e.keyLocation);
         }
 
+        auto l = keyMap.insert(key, std::move(value));
+        assert(l.second == true);
         auto& e = l.first->second;
         e.keyLocation = l.first;
         lruQueue.push_back(e);
@@ -90,13 +102,13 @@ private:
         //    return *this;
         //}
     
-        Entry(const ValueType& a_value)
-          : value(a_value)
+        Entry(ValueType&& a_value)
+          : value(std::move(a_value))
         {}
         ValueType value;
         typename MapType::iterator keyLocation;
     };
-    MapType keys;
+    MapType keyMap;
     QueueType lruQueue;
     const size_t maxCacheSize;
 };

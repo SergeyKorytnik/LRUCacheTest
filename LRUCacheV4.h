@@ -60,25 +60,43 @@ private:
         >;
 public:
     LRUCache(size_t cacheSize) : maxCacheSize(cacheSize) {}
-
-    static constexpr const char* description() {
-        return use_unordered_map ?
-            (use_fast_allocator ?
-                "LRUCache(boost::multi_index_container"
-                " + hashed_unique + boost::fast_pool_allocator)"
-                :
-                "LRUCache(boost::multi_index_container"
-                " + hashed_unique + std::allocator)"
-                )
-            :
-            (use_fast_allocator ?
-                "LRUCache(boost::multi_index_container"
-                " + ordered_unique + boost::fast_pool_allocator)"
-                :
-                "LRUCache(boost::multi_index_container"
-                " + ordered_unique + std::allocator)"
-                )
-            ;
+    static const char* description() {
+        if (std::is_same < Hasher, void >::value) {
+            if (use_fast_allocator)
+                return "LRUCache(boost::multi_index_container"
+                    " + ordered_unique"
+                    " + boost::fast_pool_allocator)";
+            else
+                return "LRUCache(boost::multi_index_container"
+                    " + ordered_unique)";
+        }
+        else if (std::is_same < Hasher, std::hash<KeyType>>::value) {
+            if (use_fast_allocator)
+                return "LRUCache(boost::multi_index_container"
+                " + hashed_unique + std::hash"
+                " + boost::fast_pool_allocator)";
+            else
+                return "LRUCache(boost::multi_index_container"
+                " + hashed_unique + std::hash)";
+        }
+        else if (std::is_same < Hasher, boost::hash<KeyType>>::value) {
+            if (use_fast_allocator)
+                return "LRUCache(boost::multi_index_container"
+                " + hashed_unique + boost::hash"
+                " + boost::fast_pool_allocator)";
+            else
+                return "LRUCache(boost::multi_index_container"
+                " + hashed_unique + boost::hash)";
+        }
+        else {
+            if (use_fast_allocator)
+                return "LRUCache(boost::multi_index_container"
+                " + hashed_unique + unknown hash function"
+                " + boost::fast_pool_allocator)";
+            else
+                return "LRUCache(boost::multi_index_container"
+                " + hashed_unique + unknown hash function)";
+        }
     }
 
     const ValueType* get(const KeyType& key) {

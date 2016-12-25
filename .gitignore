@@ -253,3 +253,5 @@ ModelManifest.xml
 /MacOS_Clang_LRUCach_testresults_bh_bc_gcc62.txt
 /MacOS_Clang_LRUCach_testresults_bh_gcc62.txt
 /MacOS_Clang_LRUCach_testresults_gcc62.txt
+/MacOS_LRUCache_testresults_clang.txt
+/MacOS_LRUCache_testresults_gcc62.txt
