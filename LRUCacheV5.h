@@ -64,15 +64,30 @@ public:
     bool put(const KeyType& key, ValueType value) {
         assert(keyMap.size() <= maxCacheSize);
         size_t entryIndex = keyMap.size() + 1; // +1 since the first entry is a sentinel
-        auto l = keyMap.insert(key, entryIndex);
+        return finishPutOperation(
+            keyMap.try_emplace(key, entryIndex),
+            std::move(value));
+    }
+
+    bool put(KeyType&& key, ValueType value) {
+        assert(keyMap.size() <= maxCacheSize);
+        size_t entryIndex = keyMap.size() + 1; // +1 since the first entry is a sentinel
+        return finishPutOperation(
+            keyMap.try_emplace(std::move(key), entryIndex),
+            std::move(value));
+    }
+
+private:
+    bool finishPutOperation(
+        std::pair<typename MapType::iterator, bool> l,
+        ValueType&& value) {
+        size_t entryIndex = l.first->second;
         if (l.second == false) { // the key already exist in the map
-            entryIndex = l.first->second;
             entries[entryIndex].value = std::move(value);
             pushIntoQueue(entryIndex);
             return false;
         }
 
-        assert(entryIndex == keyMap.size());
         if (entryIndex <= maxCacheSize) {
             entries.emplace_back(entryIndex,
                 entryIndex,
@@ -90,7 +105,6 @@ public:
         return true;
     }
 
-private:
     void pushIntoQueue(size_t entryIndex) {
         auto& e = entries[entryIndex];
         entries[e.prev].next = e.next;

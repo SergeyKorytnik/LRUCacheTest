@@ -349,7 +349,9 @@ public:
 		}
 	}
 
-    std::pair<iterator, bool> insert(const KeyT& key, ValueT&& value)
+    template<class Keyty,
+        class... Mappedty>
+    std::pair<iterator, bool> try_emplace(Keyty&& key, Mappedty&&... Mapval)
     {
         check_expand_need();
 
@@ -360,7 +362,8 @@ public:
         }
         else {
             _states[bucket] = State::FILLED;
-            new(_pairs + bucket) PairT(key, std::move(value));
+            new(_pairs + bucket) PairT(std::forward<Keyty>(key),
+                ValueT(std::forward<Mappedty>(Mapval)...));
             _num_filled++;
             return{ iterator(this, bucket), true };
         }

@@ -63,28 +63,40 @@ public:
 
     bool put(const KeyType& key, ValueType value) {
         assert(keyMap.size() <= maxCacheSize);
-        Entry* p = keyMap.try_get(key);
-        if (p) { // the key already exist in the map
-            p->value = std::move(value);
-            pushToQueueEnd(*p);
+        return finishPutOperation(
+            keyMap.try_emplace(key, std::move(value)),
+            std::move(value));
+    }
+
+    bool put(KeyType&& key, ValueType value) {
+        assert(keyMap.size() <= maxCacheSize);
+        return finishPutOperation(
+            keyMap.try_emplace(key, std::move(value)),
+            std::move(value));
+    }
+
+private:
+    bool finishPutOperation(
+        std::pair<typename MapType::iterator, bool> l, 
+        ValueType&& value)
+    {
+        if (l.second == false) { // the key already exist in the map
+            l.first->second.value = std::move(value);
+            pushToQueueEnd(l.first->second);
             return false;
         }
 
-        if (keyMap.size() >= maxCacheSize) {
+        if (keyMap.size() > maxCacheSize) {
             auto& e = lruQueue.front();
             lruQueue.pop_front();
             keyMap.erase(e.keyLocation);
         }
 
-        auto l = keyMap.insert(key, std::move(value));
-        assert(l.second == true);
         auto& e = l.first->second;
         e.keyLocation = l.first;
         lruQueue.push_back(e);
         return true;
     }
-
-private:
     void pushToQueueEnd(Entry& e) {
         lruQueue.splice(lruQueue.end(), lruQueue,
             QueueType::s_iterator_to(e));
