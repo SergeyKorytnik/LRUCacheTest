@@ -179,6 +179,10 @@ public:
 	// ------------------------------------------------------------------------
 
 	HashMap() = default;
+    explicit HashMap(size_t num_elems)
+    {
+        reserve(num_elems);
+    }
 
 	HashMap(const HashMap& other)
 	{
