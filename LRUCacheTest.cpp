@@ -1,16 +1,19 @@
 // LRUCacheTest.cpp : Defines the entry point for the console application.
+// The application tests both correctness and performance of 
+// various implementations of a cache class with LRU replacement policy.
 //
+// Written by Sergey Korytnik 
 #ifdef _MSC_VER 
 #define WINDOWS 1
 #define _CRT_NONSTDC_NO_WARNINGS 
 #define _CRT_SECURE_NO_WARNINGS
 #endif
+#define LOGURU_IMPLEMENTATION 1
 
 #include "LRUCacheV1.h"
 #include "LRUCacheV2.h"
 #include "LRUCacheV3.h"
 #include "LRUCacheV4.h"
-#define LOGURU_IMPLEMENTATION 1
 #include "LRUCacheV5.h"
 #include "LRUCacheV6.h"
 
@@ -52,7 +55,7 @@ public:
             throw std::runtime_error(message);
         }
     }
-    virtual const char* getTestDescription() const = 0;
+    virtual std::string getTestDescription() const = 0;
     virtual void runSanityTests() = 0;
     virtual void runPerformanceTest(
         size_t cacheSize,
@@ -127,7 +130,7 @@ namespace {
 template <template <class,class> class LRUCache>
 class LRUCacheTestImpl : public LRUCacheTest {
 public:
-    const char* getTestDescription() const override {
+    std::string getTestDescription() const override {
         return LRUCache<size_t, size_t>::description();
     }
 
@@ -349,126 +352,233 @@ std::pair<std::vector<size_t>, std::vector<bool>> generateTestSequence(
 //  
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V1ovss = LRUCacheV1::LRUCache<
-    KeyType, ValueType, void, false, false>;
+using LRUCache_V1ovss = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::StdMap<>>;
 template <typename KeyType, typename  ValueType>
-using LRUCache_V1usss = LRUCacheV1::LRUCache<
-    KeyType, ValueType, std::hash<KeyType>, false,false>;
+using LRUCache_V1usss = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::StdUnorderedMap<>>;
 template <typename KeyType, typename  ValueType>
-using LRUCache_V1ubss = LRUCacheV1::LRUCache<
-    KeyType, ValueType, boost::hash<KeyType>, false, false>;
+using LRUCache_V1ubss = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::StdUnorderedMap<
+    LRUCache::Options::BoostHash> >;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V1ovfs = LRUCacheV1::LRUCache<
-    KeyType, ValueType, void, true, false>;
+using LRUCache_V1ovfs = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::StdMap<
+        LRUCache::Options::FastPoolAllocator> >;
 template <typename KeyType, typename  ValueType>
-using LRUCache_V1usfs = LRUCacheV1::LRUCache<
-    KeyType, ValueType, std::hash<KeyType>, true, false>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V1ubfs = LRUCacheV1::LRUCache<
-    KeyType, ValueType, boost::hash<KeyType>, true, false>;
-template <typename KeyType, typename  ValueType>
-
-using LRUCache_V1ovsb = LRUCacheV1::LRUCache<
-    KeyType, ValueType, void, false, true>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V1ussb = LRUCacheV1::LRUCache<
-    KeyType, ValueType, std::hash<KeyType>, false, true>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V1ubsb = LRUCacheV1::LRUCache<
-    KeyType, ValueType, boost::hash<KeyType>, false, true>;
+using LRUCache_V1usfs = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::StdUnorderedMap<
+        LRUCache::Options::StdHash,
+        LRUCache::Options::FastPoolAllocator> >;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V1ovfb = LRUCacheV1::LRUCache<
-    KeyType, ValueType, void, true, true>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V1usfb = LRUCacheV1::LRUCache<
-    KeyType, ValueType, std::hash<KeyType>, true, true>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V1ubfb = LRUCacheV1::LRUCache<
-    KeyType, ValueType, boost::hash<KeyType>, true, true>;
+using LRUCache_V1ubfs = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::StdUnorderedMap<
+    LRUCache::Options::BoostHash,
+    LRUCache::Options::FastPoolAllocator> >;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V2ovss = LRUCacheV2::LRUCache
-<KeyType, ValueType, void, false, false>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V2usss = LRUCacheV2::LRUCache<
-    KeyType, ValueType, std::hash<KeyType>, false, false>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V2ubss = LRUCacheV2::LRUCache<
-    KeyType, ValueType, boost::hash<KeyType>, false, false>;
+using LRUCache_V1ovsb = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::BoostMap<>>;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V2ovfs = LRUCacheV2::LRUCache
-<KeyType, ValueType, void, true, false>;
+using LRUCache_V1ussb = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::BoostUnorderedMap<>>;
 template <typename KeyType, typename  ValueType>
-using LRUCache_V2usfs = LRUCacheV2::LRUCache<
-    KeyType, ValueType, std::hash<KeyType>, true, false>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V2ubfs = LRUCacheV2::LRUCache<
-    KeyType, ValueType, boost::hash<KeyType>, true, false>;
+using LRUCache_V1ubsb = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::BoostUnorderedMap<
+    LRUCache::Options::BoostHash> >;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V2ovsb = LRUCacheV2::LRUCache
-<KeyType, ValueType, void, false, true>;
+using LRUCache_V1ovfb = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::BoostMap<
+        LRUCache::Options::FastPoolAllocator> >;
 template <typename KeyType, typename  ValueType>
-using LRUCache_V2ussb = LRUCacheV2::LRUCache<
-    KeyType, ValueType, std::hash<KeyType>, false, true>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V2ubsb = LRUCacheV2::LRUCache<
-    KeyType, ValueType, boost::hash<KeyType>, false, true>;
+using LRUCache_V1usfb = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::BoostUnorderedMap<
+    LRUCache::Options::StdHash,
+    LRUCache::Options::FastPoolAllocator> >;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V2ovfb = LRUCacheV2::LRUCache
-<KeyType, ValueType, void, true, true>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V2usfb = LRUCacheV2::LRUCache<
-    KeyType, ValueType, std::hash<KeyType>, true, true>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V2ubfb = LRUCacheV2::LRUCache<
-    KeyType, ValueType, boost::hash<KeyType>, true, true>;
+using LRUCache_V1ubfb = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::BoostUnorderedMap<
+    LRUCache::Options::BoostHash,
+    LRUCache::Options::FastPoolAllocator> >;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V3ov = LRUCacheV3::LRUCache<KeyType, ValueType, void>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V3us = LRUCacheV3::LRUCache<
-    KeyType, ValueType, std::hash<KeyType>>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V3ub = LRUCacheV3::LRUCache<
-    KeyType, ValueType, boost::hash<KeyType>>;
+using LRUCache_V1es = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::EmilibHashMap<
+    LRUCache::Options::StdHash> >;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V4ovs = LRUCacheV4::LRUCache<KeyType, ValueType, void, false>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V4uss = LRUCacheV4::LRUCache<
-    KeyType, ValueType, std::hash<KeyType>, false>;
-template <typename KeyType, typename  ValueType>
-using LRUCache_V4ubs = LRUCacheV4::LRUCache<
-    KeyType, ValueType, boost::hash<KeyType>, false>;
+using LRUCache_V1eb = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::EmilibHashMap<
+    LRUCache::Options::BoostHash> >;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V4ovf = LRUCacheV4::LRUCache<KeyType, ValueType, void, true>;
+using LRUCache_V2ovss = LRUCache::LRUCacheV2<
+    KeyType, ValueType, 
+    LRUCache::Options::StdMap<>, 
+    LRUCache::Options::StdList<>
+>;
 template <typename KeyType, typename  ValueType>
-using LRUCache_V4usf = LRUCacheV4::LRUCache<
-    KeyType, ValueType, std::hash<KeyType>, true>;
+using LRUCache_V2usss = LRUCache::LRUCacheV2<
+    KeyType, ValueType, 
+    LRUCache::Options::StdUnorderedMap<>, 
+    LRUCache::Options::StdList<>
+>;
+
 template <typename KeyType, typename  ValueType>
-using LRUCache_V4ubf = LRUCacheV4::LRUCache<
-    KeyType, ValueType, boost::hash<KeyType>, true>;
+using LRUCache_V2ubss = LRUCache::LRUCacheV2<
+    KeyType, ValueType,
+    LRUCache::Options::StdUnorderedMap<LRUCache::Options::BoostHash>,
+    LRUCache::Options::StdList<>
+>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ovfs = LRUCache::LRUCacheV2<
+    KeyType, ValueType, 
+    LRUCache::Options::StdMap<LRUCache::Options::FastPoolAllocator>,
+    LRUCache::Options::StdList<LRUCache::Options::FastPoolAllocator>
+>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2usfs = LRUCache::LRUCacheV2<
+    KeyType, ValueType,
+    LRUCache::Options::StdUnorderedMap<
+        LRUCache::Options::StdHash,
+        LRUCache::Options::FastPoolAllocator
+    >,
+    LRUCache::Options::StdList<LRUCache::Options::FastPoolAllocator>
+>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ubfs = LRUCache::LRUCacheV2<
+    KeyType, ValueType, 
+    LRUCache::Options::StdUnorderedMap<
+        LRUCache::Options::BoostHash,
+        LRUCache::Options::FastPoolAllocator
+    >,
+    LRUCache::Options::StdList<LRUCache::Options::FastPoolAllocator>
+>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ovsb = LRUCache::LRUCacheV2<
+    KeyType, ValueType,
+    LRUCache::Options::BoostMap<LRUCache::Options::StdAllocator>,
+    LRUCache::Options::BoostList<LRUCache::Options::StdAllocator>
+>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ussb = LRUCache::LRUCacheV2<
+    KeyType, ValueType,
+    LRUCache::Options::BoostUnorderedMap<
+        LRUCache::Options::StdHash,
+        LRUCache::Options::StdAllocator 
+    >,
+    LRUCache::Options::BoostList<LRUCache::Options::StdAllocator>
+>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ubsb = LRUCache::LRUCacheV2<
+    KeyType, ValueType, 
+    LRUCache::Options::BoostUnorderedMap<
+        LRUCache::Options::BoostHash,
+        LRUCache::Options::StdAllocator
+    >,
+    LRUCache::Options::BoostList<LRUCache::Options::StdAllocator>
+>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ovfb = LRUCache::LRUCacheV2<
+    KeyType, ValueType,
+    LRUCache::Options::BoostMap<LRUCache::Options::FastPoolAllocator>,
+    LRUCache::Options::BoostList<LRUCache::Options::FastPoolAllocator>
+>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2usfb = LRUCache::LRUCacheV2<
+    KeyType, ValueType,
+    LRUCache::Options::BoostUnorderedMap<
+        LRUCache::Options::StdHash,
+        LRUCache::Options::FastPoolAllocator
+    >,
+    LRUCache::Options::BoostList<LRUCache::Options::FastPoolAllocator>
+>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ubfb = LRUCache::LRUCacheV2<
+    KeyType, ValueType,
+    LRUCache::Options::BoostUnorderedMap<
+        LRUCache::Options::BoostHash,
+        LRUCache::Options::FastPoolAllocator
+    >,
+    LRUCache::Options::BoostList<LRUCache::Options::FastPoolAllocator>
+>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2es = LRUCache::LRUCacheV2<
+    KeyType, ValueType,
+    LRUCache::Options::EmilibHashMap<LRUCache::Options::StdHash>,
+    LRUCache::Options::BoostList<LRUCache::Options::FastPoolAllocator>
+>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2eb = LRUCache::LRUCacheV2<
+    KeyType, ValueType,
+    LRUCache::Options::EmilibHashMap<LRUCache::Options::BoostHash>,
+    LRUCache::Options::BoostList<LRUCache::Options::FastPoolAllocator>
+>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V3ov = LRUCache::LRUCacheV3<KeyType, ValueType, 
+    LRUCache::Options::VoidHash>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V3us = LRUCache::LRUCacheV3<
+    KeyType, ValueType, LRUCache::Options::StdHash>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V3ub = LRUCache::LRUCacheV3<
+    KeyType, ValueType, LRUCache::Options::BoostHash>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V4ovs = LRUCache::LRUCacheV4<KeyType, ValueType,
+    LRUCache::Options::VoidHash>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V4uss = LRUCache::LRUCacheV4<
+    KeyType, ValueType, LRUCache::Options::StdHash>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V4ubs = LRUCache::LRUCacheV4<
+    KeyType, ValueType, LRUCache::Options::BoostHash>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V4ovf = LRUCache::LRUCacheV4<KeyType, ValueType,
+    LRUCache::Options::VoidHash,
+    LRUCache::Options::FastPoolAllocator>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V4usf = LRUCache::LRUCacheV4<
+    KeyType, ValueType, LRUCache::Options::StdHash,
+    LRUCache::Options::FastPoolAllocator
+>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V4ubf = LRUCache::LRUCacheV4<
+    KeyType, ValueType, LRUCache::Options::BoostHash,
+    LRUCache::Options::FastPoolAllocator
+>;
 
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V5s = LRUCacheV5::LRUCache<
-    KeyType, ValueType, std::hash<KeyType>>;
+using LRUCache_V5s = LRUCache::LRUCacheV5<
+    KeyType, ValueType, LRUCache::Options::StdHash>;
 template <typename KeyType, typename  ValueType>
-using LRUCache_V5b = LRUCacheV5::LRUCache<
-    KeyType, ValueType, boost::hash<KeyType>>;
+using LRUCache_V5b = LRUCache::LRUCacheV5<
+    KeyType, ValueType, LRUCache::Options::BoostHash>;
 
 template <typename KeyType, typename  ValueType>
-using LRUCache_V6s = LRUCacheV6::LRUCache<
-    KeyType, ValueType, std::hash<KeyType>>;
+using LRUCache_V6s = LRUCache::LRUCacheV6<
+    KeyType, ValueType, LRUCache::Options::StdHash>;
 template <typename KeyType, typename  ValueType>
-using LRUCache_V6b = LRUCacheV6::LRUCache<
-    KeyType, ValueType, boost::hash<KeyType>>;
+using LRUCache_V6b = LRUCache::LRUCacheV6<
+    KeyType, ValueType, LRUCache::Options::BoostHash>;
 
 std::vector<std::unique_ptr<LRUCacheTest>> constructTestVector() {
     std::unique_ptr<LRUCacheTest> init_list[] = {
@@ -510,6 +620,10 @@ std::vector<std::unique_ptr<LRUCacheTest>> constructTestVector() {
         std::make_unique<LRUCacheTestImpl<LRUCache_V5b> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V6s> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V6b> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1es> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1eb> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2es> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2eb> >(),
     };
     return std::vector<std::unique_ptr<LRUCacheTest>>(
         std::make_move_iterator(std::begin(init_list)),

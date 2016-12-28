@@ -1,91 +1,37 @@
-// LRUCacheV1.h : contains a definition of LRUCache class.
-//   The LRUCache class implements a cache with LRU replacement policy.
-//   The version of LRUCache uses "hand made" double linked list over 
+// LRUCacheV1.h : contains a definition of LRUCacheV1 class.
+//   The LRUCacheV1 class implements a cache with LRU replacement policy.
+//   The version of LRUCacheV1 uses "hand made" double linked list over 
 //   std::vector. An associative container to use for efficient key lookup 
 //   is selected depending on the following template parameters:
-//     -- if a hash function is provided (Hasher is not void) then 
-//        a hash table is used (if use_boost_container then 
-//        boost::unordered_map and std::unordered_map otherwise.
-//     -- if no hash function is provided (Hasher is void) then an ordered 
-//        lookup container is used (if use_boost_conatiner then
-//        boost::container::map and std::map otherwise
-//     -- if use_fast_allocator then boost::fast_pool_allocator will be used
-//        in associative container instead of std::allocator    
-//   
+//     MapOption -- an associative container to use for efficient key lookup.
+//                  It can be one of the following: Options::StdMap, 
+//                  Options::BoostMap, Options::StdUnorderedMap,
+//                  Options::BoostUnorderedMap, Options::EmilibHashMap  
 //
 // Written by Sergey Korytnik 
 //
 #pragma once
-#include <functional>
 #include <vector>
-#include <boost/unordered_map.hpp>
-#include <boost/container/map.hpp>
-#include <boost/pool/pool_alloc.hpp>
-#include <unordered_map>
-#include <map>
 #include <cassert>
-#include <type_traits>
+#include "LRUCacheOptions.h"
+#include "LRUCacheMapOptions.h"
 
-namespace LRUCacheV1 {
+namespace LRUCache {
 template <typename KeyType, typename ValueType, 
-    // std::map/boost::container::map will be used if Hasher is void!
-    class Hasher = std::hash<KeyType>, 
-    bool use_fast_allocator = false,
-    bool use_boost_containers = false
+    typename MapOption = Options::StdMap<> 
 >
-class LRUCache {
+class LRUCacheV1 {
 private:
-    static constexpr bool use_unordered_map = 
-       !std::is_void<Hasher>::value;
-    static constexpr bool emulate_try_emplace = 
-        use_boost_containers && use_unordered_map;
-    using MapPairAllocatorType = typename std::conditional<use_fast_allocator,
-        boost::fast_pool_allocator<std::pair<const KeyType, size_t>>,
-        std::allocator<std::pair<const KeyType, size_t>>
-    >::type;
-
-    using BaseOrderedMapType = typename std::conditional<use_boost_containers,
-        boost::container::map<KeyType, size_t,
-            std::less<KeyType>,
-            MapPairAllocatorType
-        >,
-        std::map<KeyType, size_t,
-            std::less<KeyType>,
-            MapPairAllocatorType
-        >
-    >::type;
-
-    struct OrderedMapType : public BaseOrderedMapType {
-        // to unify API with std::unordered_map<KeyType, size_t>
-        OrderedMapType(size_t) {}
-    };
-
-    using UnorderedMapType = typename std::conditional<use_boost_containers,
-        boost::unordered_map<KeyType, size_t,
-            Hasher,
-            std::equal_to<KeyType>,
-            MapPairAllocatorType
-        >,
-        std::unordered_map<KeyType, size_t,
-            Hasher,
-            std::equal_to<KeyType>,
-            MapPairAllocatorType
-        >
-    >::type;
-
-    using MapType = typename std::conditional<use_unordered_map,
-        UnorderedMapType, OrderedMapType>::type;
+    using MapType = typename MapOption::template type<KeyType,size_t>;
 public:
-    using value_type = ValueType;
-    using key_type = KeyType;
-    LRUCache() = delete;
-    LRUCache(const LRUCache&) = delete;
-    LRUCache& operator=(const LRUCache&) = delete;
-    LRUCache(LRUCache&&) = default;
-    LRUCache& operator=(LRUCache&&) = default;
-    ~LRUCache() = default;
+    LRUCacheV1() = delete;
+    LRUCacheV1(const LRUCacheV1&) = delete;
+    LRUCacheV1& operator=(const LRUCacheV1&) = delete;
+    LRUCacheV1(LRUCacheV1&&) = default;
+    LRUCacheV1& operator=(LRUCacheV1&&) = default;
+    ~LRUCacheV1() = default;
 
-    LRUCache(size_t cacheSize) : maxCacheSize(cacheSize)
+    LRUCacheV1(size_t cacheSize) : maxCacheSize(cacheSize)
         , keyMap(2 * cacheSize)
     {
         entries.reserve(1 + cacheSize);
@@ -106,175 +52,34 @@ public:
 
     bool put(const KeyType& key, const ValueType& value) {
         return finishPutOperation(
-            insertIntoMap(key), 
+            keyMap.try_emplace(key, keyMap.size() + 1),
             std::move(ValueType(value)));
     }
     bool put(const KeyType& key, ValueType&& value) {
         return finishPutOperation(
-            insertIntoMap(key),
+            keyMap.try_emplace(key, keyMap.size() + 1),
             std::move(value));
     }
 
     bool put(KeyType&& key,const ValueType& value) {
         return finishPutOperation(
-            insertIntoMap(std::move(key)),
+            keyMap.try_emplace(std::move(key), keyMap.size() + 1),
             std::move(ValueType(value)));
     }
 
     bool put(KeyType&& key, ValueType&& value) {
         return finishPutOperation(
-            insertIntoMap(std::move(key)),
+            keyMap.try_emplace(std::move(key), keyMap.size() + 1),
             std::move(value));
     }
 
-    static const char* description() {
-        if (use_unordered_map) {
-            if (use_boost_containers) {
-                if (std::is_same < Hasher, std::hash<KeyType>>::value) {
-                    if (use_fast_allocator) {
-                        return "LRUCache(boost::unordered_map + std::hash"
-                            " + custom list over vector"
-                            " + boost::fast_pool_allocator)";
-                    }
-                    else {
-                        return "LRUCache(boost::unordered_map + std::hash"
-                            " + custom list over vector"
-                            ")";
-                    }
-                }
-                else if (std::is_same < Hasher, boost::hash<KeyType>>::value) {
-                    if (use_fast_allocator) {
-                        return "LRUCache(boost::unordered_map + boost::hash"
-                            " + custom list over vector"
-                            " + boost::fast_pool_allocator)";
-                    }
-                    else {
-                        return "LRUCache(boost::unordered_map + boost::hash"
-                            " + custom list over vector"
-                            ")";
-                    }
-                }
-                else {
-                    if (use_fast_allocator) {
-                        return "LRUCache(boost::unordered_map"
-                            " + unknown hash function"
-                            " + custom list over vector"
-                            " + boost::fast_pool_allocator)";
-                    }
-                    else {
-                        return "LRUCache(boost::unordered_map"
-                            " + unknown hash function"
-                            " + custom list over vector"
-                            ")";
-                    }
-                }
-            }
-            else {
-                if (std::is_same < Hasher, std::hash<KeyType>>::value) {
-                    if (use_fast_allocator) {
-                        return "LRUCache(std::unordered_map + std::hash"
-                            " + custom list over vector"
-                            " + boost::fast_pool_allocator)";
-                    }
-                    else {
-                        return "LRUCache(std::unordered_map + std::hash"
-                            " + custom list over vector"
-                            ")";
-                    }
-                }
-                else if (std::is_same < Hasher, boost::hash<KeyType>>::value) {
-                    if (use_fast_allocator) {
-                        return "LRUCache(std::unordered_map + boost::hash"
-                            " + custom list over vector"
-                            " + boost::fast_pool_allocator)";
-                    }
-                    else {
-                        return "LRUCache(std::unordered_map + boost::hash"
-                            " + custom list over vector"
-                            ")";
-                    }
-                }
-                else {
-                    if (use_fast_allocator) {
-                        return "LRUCache(std::unordered_map + unknown hash function"
-                            " + custom list over vector"
-                            " + boost::fast_pool_allocator)";
-                    }
-                    else {
-                        return "LRUCache(std::unordered_map + unknown hash function"
-                            " + custom list over vector"
-                            ")";
-                    }
-                }
-            }
-        }
-        else {
-            if (use_boost_containers) {
-                if (use_fast_allocator) {
-                    return "LRUCache(boost::container::map"
-                        " + custom list over vector"
-                        " + boost::fast_pool_allocator)";
-                }
-                else {
-                    return "LRUCache(boost::container::map"
-                        " + custom list over vector"
-                        ")";
-                }
-            }
-            else {
-                if (use_fast_allocator) {
-                    return "LRUCache(std::map"
-                        " + custom list over vector"
-                        " + boost::fast_pool_allocator)";
-                }
-                else {
-                    return "LRUCache(std::map"
-                        " + custom list over vector"
-                        ")";
-                }
-            }
-        }
+    static std::string description() {
+        std::string s = "LRUCacheV1(";
+        s += MapOption::description();
+        s += " + custom list over vector)";
+        return s;
     }
 private:
-    template<bool ete = emulate_try_emplace,
-        std::enable_if_t<ete>* = nullptr
-    >
-    auto insertIntoMap(const KeyType& key)
-    {
-        assert(keyMap.size() <= maxCacheSize);
-        // keyMap.size() + 1 since the first entry is a sentinel
-        return keyMap.emplace(key, keyMap.size() + 1);
-    }
-
-    template<bool ete = emulate_try_emplace,
-        std::enable_if_t<!ete>* = nullptr
-    >
-    auto insertIntoMap(const KeyType& key)
-    {
-        assert(keyMap.size() <= maxCacheSize);
-        // keyMap.size() + 1 since the first entry is a sentinel
-        return keyMap.try_emplace(key, keyMap.size() + 1);
-    }
-    
-    template<bool ete = emulate_try_emplace, 
-        std::enable_if_t<ete>* = nullptr
-    >
-    auto insertIntoMap(KeyType&& key )
-    {
-        assert(keyMap.size() <= maxCacheSize);
-        // keyMap.size() + 1 since the first entry is a sentinel
-        return keyMap.emplace(std::move(key), keyMap.size() + 1);
-    }
-
-    template<bool ete = emulate_try_emplace,
-        std::enable_if_t<!ete>* = nullptr
-    >
-    auto insertIntoMap(KeyType&& key)
-    {
-        assert(keyMap.size() <= maxCacheSize);
-        // keyMap.size() + 1 since the first entry is a sentinel
-        return keyMap.try_emplace(std::move(key), keyMap.size() + 1);
-    }
 
     bool finishPutOperation(
         std::pair<typename MapType::iterator,bool> l, ValueType&& value) {

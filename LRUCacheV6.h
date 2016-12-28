@@ -1,54 +1,45 @@
-// LRUCacheV6.h : contains a definition of LRUCache class.
-//   The LRUCache class implements a cache with LRU replacement policy.
-//   The version of LRUCache uses boost::intrusive::list with
+// LRUCacheV6.h : contains a definition of LRUCacheV6 class.
+//   The LRUCacheV6 class implements a cache with LRU replacement policy.
+//   The version of LRUCacheV6 uses boost::intrusive::list with
 //   emilib::HashMap.
 //
 // Written by Sergey Korytnik 
 #pragma once
 #include "hash_map.hpp"
+#include "LRUCacheOptions.h"
 #include <vector>
 #include <boost/intrusive/list.hpp>
 #include <cassert>
 
-namespace LRUCacheV6 {
+namespace LRUCache {
 
 template <typename KeyType, typename ValueType,
-    typename Hasher = std::hash<KeyType>
+    typename HashOption = Options::StdHash
 >
-class LRUCache {
-public:
-    using value_type = ValueType;
-    using key_type = KeyType;
+class LRUCacheV6 {
 private:
     struct Entry;
     using QueueType = boost::intrusive::list<Entry>;
-    using MapType = emilib::HashMap<KeyType, Entry,Hasher>;
-public:
-    LRUCache() = delete;
-    LRUCache(const LRUCache&) = delete;
-    LRUCache& operator=(const LRUCache&) = delete;
-    LRUCache(LRUCache&&) = default;
-    LRUCache& operator=(LRUCache&&) = default;
-    ~LRUCache() = default;
+    using MapType = emilib::HashMap<KeyType, Entry,
+        typename HashOption::template type<KeyType> >;
 
-    LRUCache(size_t cacheSize) : maxCacheSize(cacheSize)        
+public:
+    LRUCacheV6() = delete;
+    LRUCacheV6(const LRUCacheV6&) = delete;
+    LRUCacheV6& operator=(const LRUCacheV6&) = delete;
+    LRUCacheV6(LRUCacheV6&&) = default;
+    LRUCacheV6& operator=(LRUCacheV6&&) = default;
+    ~LRUCacheV6() = default;
+
+    LRUCacheV6(size_t cacheSize) : maxCacheSize(cacheSize)        
     {
-        keyMap.reserve(cacheSize);
+        keyMap.reserve(2 * cacheSize);
     }
 
-    static const char* description() {
-        if (std::is_same < Hasher, std::hash<KeyType>>::value) {
-            return "LRUCache(emilib::HashMap + std::hash"
-                " + boost::intrusive::list)";
-        }
-        else if (std::is_same < Hasher, boost::hash<KeyType>>::value) {
-            return "LRUCache(emilib::HashMap + boost::hash"
-                " + boost::intrusive::list)";
-        }
-        else {
-            return "LRUCache(emilib::HashMap + unknown hash function"
-                " + boost::intrusive::list)";
-        }
+    static std::string description() {
+        return std::string("LRUCacheV6(emilib::HashMap(")
+            + HashOption::description()
+            + "), boost::intrusive::list)";
     }
 
     const ValueType* get(const KeyType& key) {

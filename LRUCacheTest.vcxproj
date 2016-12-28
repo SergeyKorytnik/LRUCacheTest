@@ -92,7 +92,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>TEST_LRU_CACHE_V1_MAP;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalOptions>/std:c++latest /D_HAS_AUTO_PTR_ETC=1 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/std:c++latest /D_HAS_AUTO_PTR_ETC=1 /bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -106,7 +106,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>TEST_LRU_CACHE_V1_MAP;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalOptions>/std:c++latest /D_HAS_AUTO_PTR_ETC=1 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/std:c++latest /D_HAS_AUTO_PTR_ETC=1 /bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -154,6 +154,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="hash_map.hpp" />
+    <ClInclude Include="LRUCacheListOptions.h" />
+    <ClInclude Include="LRUCacheMapOptions.h" />
+    <ClInclude Include="LRUCacheOptions.h" />
     <ClInclude Include="LRUCacheV1.h" />
     <ClInclude Include="LRUCacheV2.h" />
     <ClInclude Include="LRUCacheV3.h" />

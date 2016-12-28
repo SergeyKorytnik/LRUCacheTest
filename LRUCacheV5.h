@@ -1,54 +1,43 @@
-// LRUCacheV5.h : contains a definition of LRUCache class.
-//   The LRUCache class implements a cache with LRU replacement policy.
-//   The version of LRUCache uses hand made double linked list with
+// LRUCacheV5.h : contains a definition of LRUCacheV5 class.
+//   The LRUCacheV5 class implements a cache with LRU replacement policy.
+//   The version of LRUCacheV5 uses hand made double linked list with
 //   emilib::HashMap.
 //
 // Written by Sergey Korytnik 
 #pragma once
 #include "hash_map.hpp"
-#include <functional>
+#include "LRUCacheOptions.h"
 #include <vector>
 #include <cassert>
-namespace LRUCacheV5 {
+namespace LRUCache {
 
 template <typename KeyType, typename ValueType,
-    typename Hasher = std::hash<KeyType>
+    typename HashOption = Options::StdHash 
 >
-class LRUCache {
-public:
-    using value_type = ValueType;
-    using key_type = KeyType;
+class LRUCacheV5 {
 private:
     struct Entry;
-    using MapType = emilib::HashMap<KeyType, size_t, Hasher>;
+    using MapType = emilib::HashMap<KeyType, size_t, 
+        typename HashOption::template type<KeyType> >;
 public:
-    LRUCache() = delete;
-    LRUCache(const LRUCache&) = delete;
-    LRUCache& operator=(const LRUCache&) = delete;
-    LRUCache(LRUCache&&) = default;
-    LRUCache& operator=(LRUCache&&) = default;
-    ~LRUCache() = default;
+    LRUCacheV5() = delete;
+    LRUCacheV5(const LRUCacheV5&) = delete;
+    LRUCacheV5& operator=(const LRUCacheV5&) = delete;
+    LRUCacheV5(LRUCacheV5&&) = default;
+    LRUCacheV5& operator=(LRUCacheV5&&) = default;
+    ~LRUCacheV5() = default;
 
-    LRUCache(size_t cacheSize) : maxCacheSize(cacheSize)        
+    LRUCacheV5(size_t cacheSize) : maxCacheSize(cacheSize)        
     {
         // add the sentinel
         entries.emplace_back(0, 0, ValueType(),typename MapType::iterator());
-        keyMap.reserve(cacheSize);
+        keyMap.reserve(2 * cacheSize);
     }
 
-    static const char* description() {
-        if (std::is_same < Hasher, std::hash<KeyType>>::value) {
-            return "LRUCache(emilib::HashMap + std::hash"
-                " + custom double linked list over vector)";
-        }
-        else if (std::is_same < Hasher, boost::hash<KeyType>>::value) {
-            return "LRUCache(emilib::HashMap + boost::hash"
-                " + custom double linked list over vector)";
-        }
-        else {
-            return "LRUCache(emilib::HashMap + unknown hash function"
-                " + custom double linked list over vector)";
-        }
+    static std::string description() {
+        return std::string("LRUCacheV5(emilib::HashMap(") 
+            + HashOption::description() 
+            + "), custom double linked list over vector)";
     }   
 
     const ValueType* get(const KeyType& key) {

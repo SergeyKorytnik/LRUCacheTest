@@ -1,47 +1,37 @@
-// LRUCacheV4.h : contains a definition of LRUCache class.
-//   The LRUCache class implements a cache with LRU replacement policy.
-//   The version of LRUCache uses boost::multi_index_container with sequenced index 
-//   and with boost::multi_index::hashed_index if USE_UNORDERED_MAP is defined 
-//   or with boost::multi_index::ordered_index otherwise.
+// LRUCacheV4.h : contains a definition of LRUCacheV4 class.
+//   The LRUCacheV4 class implements a cache with LRU replacement policy.
+//   The version of LRUCacheV4 uses boost::multi_index_container with sequenced index 
+//   and with boost::multi_index::ordered_index (if HashOption parameter is
+//   Options::VoidHash) and boost::multi_index::hashed_index otherwise.
 //
 // Written by Sergey Korytnik 
 #pragma once
 
-#include <functional>
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/sequenced_index.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/ordered_index.hpp>
 #include <boost/multi_index/member.hpp>
-#include <boost/pool/pool_alloc.hpp>
+#include "LRUCacheOptions.h"
 
 
-namespace LRUCacheV4 {
+namespace LRUCache {
 
 template <typename KeyType, typename ValueType, 
-    // ordered_index will be used if Hasher is void!
-    class Hasher = std::hash<KeyType>,
-    bool use_fast_allocator = false
+    // ordered_index will be used if HashOption is Options::VoidHash!
+    typename HashOption = Options::StdHash,
+    typename AllocatorOption = Options::StdAllocator
 >
-class LRUCache {
-public:
-    using value_type = ValueType;
-    using key_type = KeyType;
+class LRUCacheV4 {
 private:
     struct Entry;
     static constexpr bool use_unordered_map =
-        !std::is_void<Hasher>::value;
+        !std::is_same<HashOption,Options::VoidHash>::value;
 
-    using AllocatorType = typename std::conditional<use_fast_allocator,
-        boost::fast_pool_allocator<Entry>,
-        std::allocator<Entry>
-    >::type;
-
-    using UnorderedIndexType = boost::multi_index::hashed_unique<
+    using AllocatorType = typename AllocatorOption::template type<Entry>;
+    using UnorderedIndexType = boost::multi_index::hashed_unique <
         boost::multi_index::member<Entry, KeyType, &Entry::key>,
-        // using std::hash rather than boost::hash for 
-        // consistancy of comparison with other LRUCach implementations
-        Hasher
+        typename HashOption::template type<KeyType>
     >;
     using OrderedIndexType = boost::multi_index::ordered_unique<
         boost::multi_index::member<Entry, KeyType, &Entry::key>
@@ -59,44 +49,24 @@ private:
             AllocatorType
         >;
 public:
-    LRUCache(size_t cacheSize) : maxCacheSize(cacheSize) {}
-    static const char* description() {
-        if (std::is_same < Hasher, void >::value) {
-            if (use_fast_allocator)
-                return "LRUCache(boost::multi_index_container"
-                    " + ordered_unique"
-                    " + boost::fast_pool_allocator)";
-            else
-                return "LRUCache(boost::multi_index_container"
-                    " + ordered_unique)";
-        }
-        else if (std::is_same < Hasher, std::hash<KeyType>>::value) {
-            if (use_fast_allocator)
-                return "LRUCache(boost::multi_index_container"
-                " + hashed_unique + std::hash"
-                " + boost::fast_pool_allocator)";
-            else
-                return "LRUCache(boost::multi_index_container"
-                " + hashed_unique + std::hash)";
-        }
-        else if (std::is_same < Hasher, boost::hash<KeyType>>::value) {
-            if (use_fast_allocator)
-                return "LRUCache(boost::multi_index_container"
-                " + hashed_unique + boost::hash"
-                " + boost::fast_pool_allocator)";
-            else
-                return "LRUCache(boost::multi_index_container"
-                " + hashed_unique + boost::hash)";
+    LRUCacheV4(size_t cacheSize) : maxCacheSize(cacheSize) {}
+    static std::string description() {
+        std::string s = "LRUCacheV4(boost::multi_index_container(";
+        if (std::is_same < HashOption, void >::value) {
+            s += "ordered_unique";
         }
         else {
-            if (use_fast_allocator)
-                return "LRUCache(boost::multi_index_container"
-                " + hashed_unique + unknown hash function"
-                " + boost::fast_pool_allocator)";
-            else
-                return "LRUCache(boost::multi_index_container"
-                " + hashed_unique + unknown hash function)";
+            s += "hashed_unique(";
+            s += HashOption::description();
+            s += ")";
         }
+        std::string a = AllocatorOption::description();
+        if (!a.empty()) {
+            s += ", ";
+            s += a;
+        }
+        s += ")";
+        return s;
     }
 
     const ValueType* get(const KeyType& key) {

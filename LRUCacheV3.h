@@ -1,26 +1,28 @@
-// LRUCacheV3.h : contains a definition of LRUCache class.
-//   The LRUCache class implements a cache with LRU replacement policy.
-//   The version of LRUCache uses boost::intrusive::list together with boost::intrusive::unordered_set 
-//   if USE_UNORDERED_MAP is defined or with boost::intrusive::set otherwise.
+// LRUCacheV3.h : contains a definition of LRUCacheV3 class.
+//   The LRUCacheV3 class implements a cache with LRU replacement policy.
+//   The version of LRUCacheV3 uses boost::intrusive::list 
+//   together with boost::intrusive::unordered_set or
+//   boost::intrusive::set. The associative container for an efficient key 
+//   lookup is selected depending on HashOption value.
+//   If HashOption is Options::VoidHash then boost::intrusive::set is used.
+//   Otherwise boost::intrusive::unordered_set is used together with the
+//   provided hash function.
 //
 // Written by Sergey Korytnik 
 #pragma once
-#include <functional>
 #include <vector>
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/unordered_set.hpp>
 #include <boost/intrusive/set.hpp>
+#include "LRUCacheOptions.h"
 
-namespace LRUCacheV3 {
+namespace LRUCache {
 
 template <typename KeyType, typename ValueType,
-    // std::map will be used if Hasher is void!
-    typename Hasher = std::hash<KeyType>
+    // boost::intrusive::map will be used if HashOption is void!
+    typename HashOption = Options::StdHash
 >
-class LRUCache {
-public:
-    using value_type = ValueType;
-    using key_type = KeyType;
+class LRUCacheV3 {
 private:
     struct Entry;
     struct EntryKeyAccessor;
@@ -28,7 +30,7 @@ private:
     using MapType = boost::intrusive::unordered_set < Entry,
         // using std::hash rather than boost::hash for 
         // consistancy of comparison with other LRUCach implementations
-        boost::intrusive::hash<Hasher>,
+        boost::intrusive::hash<typename HashOption::template type<KeyType> >,
         boost::intrusive::key_of_value<EntryKeyAccessor>,
         boost::intrusive::power_2_buckets<true>
     >;
@@ -40,28 +42,19 @@ private:
         return r;
     }
 public:
-    LRUCache(size_t cacheSize)
+    LRUCacheV3(size_t cacheSize)
         : maxCacheSize(cacheSize),
-        buckets(minPowerOfTwoLargerThan(3 * cacheSize / 2)),
+        buckets(minPowerOfTwoLargerThan(3 * cacheSize / 2 + 1)),
         keyMap(typename MapType::bucket_traits(buckets.data(), buckets.size()))
     {
         entries.reserve(cacheSize);
     }
 
-    static const char* description() {
-        if (std::is_same < Hasher, std::hash<KeyType>>::value) {
-            return "LRUCache(boost::intrusive::unordered_set"
-                " + std::hash + boost::intrusive::list)";
-        }
-        else if (std::is_same < Hasher, boost::hash<KeyType>>::value) {
-            return "LRUCache(boost::intrusive::unordered_set"
-                " + boost::hash + boost::intrusive::list)";
-        }
-        else {
-            return "LRUCache(boost::intrusive::unordered_set"
-            " + unknown hash function + boost::intrusive::list)";
-        }
-    }   
+    static std::string description() {
+        return "LRUCacheV3(boost::intrusive::unordered_map(" 
+            + HashOption::description()
+            + "), boost::intrusive::list";
+    }
 
     const ValueType* get(const KeyType& key) {
         auto l = keyMap.find(key);
@@ -163,12 +156,12 @@ private:
     const size_t maxCacheSize;
 };
 
-// the LRUCache class partial specialization uses 
+// the LRUCacheV3 class partial specialization uses 
 // boost::intrusive::set instead of 
-// boost::intrusive::unordered_set since void is passed instead of Hasher 
+// boost::intrusive::unordered_set since void is passed instead of HashOption 
 // template parameter (the last one).
 template <typename KeyType, typename ValueType>
-class LRUCache<KeyType, ValueType, void> 
+class LRUCacheV3<KeyType, ValueType, Options::VoidHash> 
 {
     struct Entry;
     struct EntryKeyAccessor;
@@ -176,21 +169,21 @@ class LRUCache<KeyType, ValueType, void>
     using MapType = boost::intrusive::set < Entry,
         boost::intrusive::key_of_value<EntryKeyAccessor>>;
 public:
-    LRUCache() = delete;
-    LRUCache(const LRUCache&) = delete;
-    LRUCache& operator=(const LRUCache&) = delete;
-    LRUCache(LRUCache&&) = default;
-    LRUCache& operator=(LRUCache&&) = default;
-    ~LRUCache() = default;
+    LRUCacheV3() = delete;
+    LRUCacheV3(const LRUCacheV3&) = delete;
+    LRUCacheV3& operator=(const LRUCacheV3&) = delete;
+    LRUCacheV3(LRUCacheV3&&) = default;
+    LRUCacheV3& operator=(LRUCacheV3&&) = default;
+    ~LRUCacheV3() = default;
 
-    LRUCache(size_t cacheSize)
+    LRUCacheV3(size_t cacheSize)
         : maxCacheSize(cacheSize)
     {
         entries.reserve(cacheSize);
     }
 
     static constexpr const char* description() {
-        return "LRUCache(boost::intrusive::set + boost::intrusive::list)";
+        return "LRUCacheV3(boost::intrusive::set, boost::intrusive::list)";
     }
 
     const ValueType* get(const KeyType& key) {
