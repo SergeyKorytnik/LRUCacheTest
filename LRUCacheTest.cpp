@@ -29,6 +29,10 @@
 #include <ctime>
 #include <cstring>
 
+#if !defined(BOOST_HAS_THREADS) || defined(BOOST_DISABLE_THREADS) || defined(BOOST_POOL_NO_MT)
+#error boost threads support is turned off!
+#endif
+
 class LRUCacheTest {
 public:
     struct PerformanceTestResults {
@@ -104,7 +108,7 @@ public:
         if (s.find("fast_pool_allocator") != std::string::npos)
             return "fast_pool_allocator";
         else
-            return "none";
+            return "";
     }
 
     std::string getBriefDescription() {
@@ -784,7 +788,7 @@ int main(int argc, char* argv[]) {
 
         std::cout << "Writing test results summary...\n";
 
-        out << "Tested Implementation\tHash Function"
+        out << "Tested Implementation\tAllocator\tHash Function"
             "\tTest Sequence\tkey/value types"
             "\tCompiler\tCPU/OS"
             "\tAv. Time(ms)\tSt. Dev(ms)\n";
