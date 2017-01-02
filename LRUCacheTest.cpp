@@ -20,6 +20,7 @@
 #include <cassert>
 #include <random>
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <chrono>
 #include <vector>
@@ -97,8 +98,39 @@ public:
         else 
             return "unknown";
     }
+    
+    std::string getAllocatorDescription() {
+        std::string s = getTestDescription();
+        if (s.find("fast_pool_allocator") != std::string::npos)
+            return "fast_pool_allocator";
+        else
+            return "none";
+    }
+
+    std::string getBriefDescription() {
+        const char* substringsToDelete[] = {
+            ", boost::fast_pool_allocator",
+            "(boost::fast_pool_allocator)",
+            "(std::hash)",
+            "(boost::hash)",
+        };
+        std::string s = getTestDescription();
+        bool found = true;
+        for (;found;) {
+            found = false;
+            for (auto p : substringsToDelete) {
+                size_t pos = s.find(p);
+                if (pos != std::string::npos) {
+                    s.erase(pos, std::strlen(p));
+                    found = true;
+                }
+            }
+        }
+        return s;
+    }
 
     static void printTestResults(
+        std::ostream& out,
         const std::vector<PerformanceTestResults>& testResults
     ) {
         float averageDuration = 0.0;
@@ -115,10 +147,10 @@ public:
             }
             stdDeviation = std::sqrt(stdDeviation / (numSamples - 1));
         }
-        std::cout << std::setprecision(6) << averageDuration;
-        std::cout << '\t' << std::setprecision(4) << stdDeviation;
+        out << std::setprecision(6) << averageDuration;
+        out << '\t' << std::setprecision(4) << stdDeviation;
 //        for (auto& r : testResults) {
-//            std::cout << ", " << r.testDuration;
+//            out << ", " << r.testDuration;
 //        }
     }
 
@@ -696,7 +728,7 @@ void runPerformanceTests(
     }
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     try {
 
         std::time_t t = std::time(nullptr);
@@ -738,59 +770,63 @@ int main() {
         runPerformanceTests(tests, 2 * 1024, 16 * 1000000, 2048 * 64 * 1024, 0.89, 0.33);
         auto tests2 = constructTestVector();
         runPerformanceTests(tests2, 64 * 1024, 16 * 1000000, 4 * 64 * 1024, 0.89, 0.33);
+         
+        std::ofstream resultsOutput;
+        if (argc == 2) {
+            resultsOutput.open(argv[1]);
+            if (!resultsOutput.is_open()) {
+                std::cerr << "can't open '" << argv[1] << "' for writing\n";
+            }
+        }
 
-        std::cout << "The performance test results summary:\n";
-        //std::cout << "The performance test results for LRUCache<size_t,size_t>\n";
-        //std::cout << "The first test sequence results summary:\n";
-        std::cout << "Tested Implementation\tHash Function"
+        std::ostream& out = (resultsOutput.is_open() ? 
+                resultsOutput : std::cout);
+
+        std::cout << "Writing test results summary...\n";
+
+        out << "Tested Implementation\tHash Function"
             "\tTest Sequence\tkey/value types"
             "\tCompiler\tCPU/OS"
             "\tAv. Time(ms)\tSt. Dev(ms)\n";
         for (auto& t : tests) {
-            std::cout << t->getTestDescription() 
+            out << t->getBriefDescription() 
+                << '\t' << t->getAllocatorDescription()
                 << '\t' << t->getHashFunctionDescription()
                 << '\t' << "1" << '\t' << "<size_t,size_t>" 
                 << '\t' << compilerId
                 << "\t\t";
-            t->printTestResults(t->getTestResults1());
-            std::cout << '\n';
+            t->printTestResults(out, t->getTestResults1());
+            out << '\n';
         }
-        //std::cout << "The second test sequence results summary:\n";
-        //std::cout << "Test Name\tAv. Time1(ms)\tSt. Dev(ms)\tAv. Time2(ms)\tSt. Dev(ms)\n";
         for (auto& t : tests2) {
-            std::cout << t->getTestDescription()
+            out << t->getBriefDescription()
+                << '\t' << t->getAllocatorDescription()
                 << '\t' << t->getHashFunctionDescription()
                 << '\t' << "2" << '\t' << "<size_t,size_t>" 
                 << '\t' << compilerId
                 << "\t\t";
-            t->printTestResults(t->getTestResults1());
-            std::cout << '\n';
+            t->printTestResults(out, t->getTestResults1());
+            out << '\n';
         }
-        //std::cout << "The performance test results for "
-        //    "LRUCache<std::string,std::string>\n";
-        //std::cout << "Just the first 10% percent of samples are used"
-        //    " for LRUCache<std::string,std::string>\n";
-        //std::cout << "The first test sequence results summary:\n";
-        //std::cout << "Test Name\tAv. Time(ms)\tSt. Dev(ms)\n";
         for (auto& t : tests) {
-            std::cout << t->getTestDescription()
+            out << t->getBriefDescription()
+                << '\t' << t->getAllocatorDescription()
                 << '\t' << t->getHashFunctionDescription()
                 << '\t' << "10% of 1" << '\t' << "<string,string>" 
                 << '\t' << compilerId
                 << "\t\t";
-            t->printTestResults(t->getTestResults2());
-            std::cout << '\n';
+            t->printTestResults(out, t->getTestResults2());
+            out << '\n';
         }
-        //std::cout << "The second test sequence results summary:\n";
-        //std::cout << "Test Name\tAv. Time1(ms)\tSt. Dev(ms)\tAv. Time2(ms)\tSt. Dev(ms)\n";
         for (auto& t : tests2) {
-            std::cout << t->getTestDescription()
+            out << t->getBriefDescription()
+                << '\t' << t->getAllocatorDescription()
                 << '\t' << t->getHashFunctionDescription()
                 << '\t' << "10% of 2" << '\t' << "<string,string>" 
                 << '\t' << compilerId
                 << "\t\t";
-            t->printTestResults(t->getTestResults2());
-            std::cout << '\n';
+            t->printTestResults(out, t->getTestResults2());
+            out << '\n';
         }
     }
     catch (std::exception& e) {
