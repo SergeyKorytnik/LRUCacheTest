@@ -85,6 +85,18 @@ public:
                 "totalEntryInsertionCount varies in different tests");
         }
     }
+    
+    std::string getHashFunctionDescription() {
+        std::string s = getTestDescription();
+        if (s.find("hash") == std::string::npos)
+            return "none";
+        else if (s.find("boost::hash") != std::string::npos)
+            return "boost::hash";
+        else if (s.find("std::hash") != std::string::npos)
+            return "std::hash";
+        else 
+            return "unknown";
+    }
 
     static void printTestResults(
         const std::vector<PerformanceTestResults>& testResults
@@ -689,22 +701,29 @@ int main() {
 
         std::time_t t = std::time(nullptr);
         std::cout << "local time: " << std::put_time(std::localtime(&t), "%F %T %z") << '\n'; 
+        std::string compilerId = "";
 #ifdef __clang__
         std::cout << "Compiler: Clang(" << __clang__  << ' ' 
             << __clang_version__ << ")\n";
+        compilerId = __VERSION__;
 #elif defined(__GNUC__)
         std::cout << "Compiler: GNU C++ (" << __GNUC__ << '.' << __GNUC_MINOR__ << ")\n";
+        compilerId = __VERSION__;
 #endif
 #ifdef _MSC_VER
         std::cout << "Compiler: Microsoft Visual C++ (" << _MSC_FULL_VER << ")\n";
+        compilerId = "VC++";
 #ifdef _M_AMD64 
         std::cout << "Architecture: Windows x64" << '\n';
+        compilerId += "x64";
 #endif
 #ifdef _M_IX86  
         std::cout << "Architecture: Windows x86" << '\n';
+        compilerId += "x86";
 #endif
 #ifdef _M_ARM   
         std::cout << "Architecture: Windows ARM" << '\n';
+        compilerId += "ARM";
 #endif
 #endif // _MSC_VER
 
@@ -720,36 +739,56 @@ int main() {
         auto tests2 = constructTestVector();
         runPerformanceTests(tests2, 64 * 1024, 16 * 1000000, 4 * 64 * 1024, 0.89, 0.33);
 
-        std::cout << "The performance test results for LRUCache<size_t,size_t>\n";
-        std::cout << "The first test sequence results summary:\n";
-        std::cout << "Test Name\tAv. Time(ms)\tSt. Dev(ms)\n";
+        std::cout << "The performance test results summary:\n";
+        //std::cout << "The performance test results for LRUCache<size_t,size_t>\n";
+        //std::cout << "The first test sequence results summary:\n";
+        std::cout << "Tested Implementation\tHash Function"
+            "\tTest Sequence\tkey/value types"
+            "\tCompiler\tCPU/OS"
+            "\tAv. Time(ms)\tSt. Dev(ms)\n";
         for (auto& t : tests) {
-            std::cout << t->getTestDescription() << '\t';
+            std::cout << t->getTestDescription() 
+                << '\t' << t->getHashFunctionDescription()
+                << '\t' << "1" << '\t' << "<size_t,size_t>" 
+                << '\t' << compilerId
+                << "\t\t";
             t->printTestResults(t->getTestResults1());
             std::cout << '\n';
         }
-        std::cout << "The second test sequence results summary:\n";
-        std::cout << "Test Name\tAv. Time1(ms)\tSt. Dev(ms)\tAv. Time2(ms)\tSt. Dev(ms)\n";
+        //std::cout << "The second test sequence results summary:\n";
+        //std::cout << "Test Name\tAv. Time1(ms)\tSt. Dev(ms)\tAv. Time2(ms)\tSt. Dev(ms)\n";
         for (auto& t : tests2) {
-            std::cout << t->getTestDescription() << '\t';
+            std::cout << t->getTestDescription()
+                << '\t' << t->getHashFunctionDescription()
+                << '\t' << "2" << '\t' << "<size_t,size_t>" 
+                << '\t' << compilerId
+                << "\t\t";
             t->printTestResults(t->getTestResults1());
             std::cout << '\n';
         }
-        std::cout << "The performance test results for "
-            "LRUCache<std::string,std::string>\n";
-        std::cout << "Just the first 10% percent of samples are used"
-            " for LRUCache<std::string,std::string>\n";
-        std::cout << "The first test sequence results summary:\n";
-        std::cout << "Test Name\tAv. Time(ms)\tSt. Dev(ms)\n";
+        //std::cout << "The performance test results for "
+        //    "LRUCache<std::string,std::string>\n";
+        //std::cout << "Just the first 10% percent of samples are used"
+        //    " for LRUCache<std::string,std::string>\n";
+        //std::cout << "The first test sequence results summary:\n";
+        //std::cout << "Test Name\tAv. Time(ms)\tSt. Dev(ms)\n";
         for (auto& t : tests) {
-            std::cout << t->getTestDescription() << '\t';
+            std::cout << t->getTestDescription()
+                << '\t' << t->getHashFunctionDescription()
+                << '\t' << "10% of 1" << '\t' << "<string,string>" 
+                << '\t' << compilerId
+                << "\t\t";
             t->printTestResults(t->getTestResults2());
             std::cout << '\n';
         }
-        std::cout << "The second test sequence results summary:\n";
-        std::cout << "Test Name\tAv. Time1(ms)\tSt. Dev(ms)\tAv. Time2(ms)\tSt. Dev(ms)\n";
+        //std::cout << "The second test sequence results summary:\n";
+        //std::cout << "Test Name\tAv. Time1(ms)\tSt. Dev(ms)\tAv. Time2(ms)\tSt. Dev(ms)\n";
         for (auto& t : tests2) {
-            std::cout << t->getTestDescription() << '\t';
+            std::cout << t->getTestDescription()
+                << '\t' << t->getHashFunctionDescription()
+                << '\t' << "10% of 2" << '\t' << "<string,string>" 
+                << '\t' << compilerId
+                << "\t\t";
             t->printTestResults(t->getTestResults2());
             std::cout << '\n';
         }

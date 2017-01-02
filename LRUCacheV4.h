@@ -52,7 +52,7 @@ public:
     LRUCacheV4(size_t cacheSize) : maxCacheSize(cacheSize) {}
     static std::string description() {
         std::string s = "LRUCacheV4(boost::multi_index_container(";
-        if (std::is_same < HashOption, void >::value) {
+        if (std::is_same < HashOption, Options::VoidHash >::value) {
             s += "ordered_unique";
         }
         else {
