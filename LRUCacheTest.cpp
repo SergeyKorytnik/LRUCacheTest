@@ -106,15 +106,19 @@ public:
     std::string getAllocatorDescription() {
         std::string s = getTestDescription();
         if (s.find("fast_pool_allocator") != std::string::npos)
-            return "fast_pool_allocator";
+            return "fast_pool_allocator<null_mutex>";
+        if (s.find("unsynchronized_pool_resource") != std::string::npos)
+            return "unsynchronized_pool_resource";
         else
             return "";
     }
 
     std::string getBriefDescription() {
         const char* substringsToDelete[] = {
-            ", boost::fast_pool_allocator",
-            "(boost::fast_pool_allocator)",
+            ", boost::fast_pool_allocator<null_mutex>",
+            "(boost::fast_pool_allocator<null_mutex>)",
+            ", boost::container::pmr::unsynchronized_pool_resource",
+            "(boost::container::pmr::unsynchronized_pool_resource)",
             "(std::hash)",
             "(boost::hash)",
         };
@@ -205,7 +209,9 @@ public:
         const std::vector<bool>& sampleActions
     ) override
     {
-        auto tests = { performanceTest1 , performanceTest2 };
+        auto tests = { 
+            performanceTest1, 
+            performanceTest2 };
         size_t i = 0;
         for (auto perfTest : tests) {
             auto startTime = std::chrono::high_resolution_clock::now();
@@ -306,12 +312,31 @@ private:
         const std::vector<size_t>& samples,
         const std::vector<bool>& sampleActions
     ) {
+        namespace pmr = boost::container::pmr;
+        using PmrString = std::basic_string<
+            char, std::char_traits<char>, 
+            pmr::polymorphic_allocator<char>>;
+        pmr::unsynchronized_pool_resource memoryResource;
+        pmr::polymorphic_allocator<char> strAllocator(&memoryResource);
+
         assert(samples.size() == sampleActions.size());
         LRUCacheTest::PerformanceTestResults results;
-        LRUCache<std::string, std::string> lruCache(cacheSize);
+        LRUCache<PmrString, PmrString> lruCache(cacheSize);
         auto sampleIt = samples.begin();
         auto sampleActionIt = sampleActions.begin();        
         size_t numTrials = sampleActions.size() / 10;
+
+        auto strMaker = [strAllocator](size_t v) {
+            std::string s = std::to_string(v);
+            PmrString res(strAllocator);
+            size_t prefixLength = v % 128;
+            res.reserve(prefixLength + s.length());
+            res.append(prefixLength, 'x');
+            // can't append a string with different allocator directly!!
+            // so append its contest
+            res.append(s.data(),s.length()); 
+            return res;
+        };
 
         for (size_t i = 0; i < numTrials; ++i) {
             bool shouldAddNew = *sampleActionIt;
@@ -319,15 +344,19 @@ private:
             size_t key = *sampleIt;
             ++sampleIt;
             size_t value = 2 * key;
+
+            PmrString skey = strMaker(key);
+
             if (shouldAddNew) {
-                if (lruCache.put(std::to_string(key), std::to_string(value)))
+                if (lruCache.put(std::move(skey), strMaker(value)))
                     ++results.keyInsertionCount;
                 ++results.totalEntryInsertionCount;
             }
             else {
-                auto res = lruCache.get(std::to_string(key));
+                auto res = lruCache.get(skey);
                 if (res) {
-                    if (std::stoul(*res) != value)
+                    if (static_cast<size_t>(
+                         std::atol(res->data() + value % 128)) != value)
                         throw std::runtime_error("invalid value in cache");
                     ++results.cacheHitCount;
                 }
@@ -394,7 +423,7 @@ std::pair<std::vector<size_t>, std::vector<bool>> generateTestSequence(
 //       X - 1..6 (version)
 //       a - o/u (ordered map or unordered map)
 //       b - v/s/b (no hash, std::hash, boost::hash)
-//       c - s/f (std::allocator, boost::fast_pool_allocator)
+//       c - s/f/u (std::allocator, boost::fast_pool_allocator, unsynchronized_pool_resource)
 //       d - s/b (std::map + std::unordered_map + std::list vs 
 //                boost::container::map + boost::unordered + boost::container::list)
 //  
@@ -427,6 +456,22 @@ using LRUCache_V1ubfs = LRUCache::LRUCacheV1<
     LRUCache::Options::FastPoolAllocator> >;
 
 template <typename KeyType, typename  ValueType>
+using LRUCache_V1ovus = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::StdMap<
+    LRUCache::Options::UnsynchronizedMemoryResource> >;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V1usus = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::StdUnorderedMap<
+    LRUCache::Options::StdHash,
+    LRUCache::Options::UnsynchronizedMemoryResource> >;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V1ubus = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::StdUnorderedMap<
+    LRUCache::Options::BoostHash,
+    LRUCache::Options::UnsynchronizedMemoryResource> >;
+
+template <typename KeyType, typename  ValueType>
 using LRUCache_V1ovsb = LRUCache::LRUCacheV1<
     KeyType, ValueType, LRUCache::Options::BoostMap<>>;
 
@@ -453,6 +498,22 @@ using LRUCache_V1ubfb = LRUCache::LRUCacheV1<
     KeyType, ValueType, LRUCache::Options::BoostUnorderedMap<
     LRUCache::Options::BoostHash,
     LRUCache::Options::FastPoolAllocator> >;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V1ovub = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::BoostMap<
+    LRUCache::Options::UnsynchronizedMemoryResource> >;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V1usub = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::BoostUnorderedMap<
+    LRUCache::Options::StdHash,
+    LRUCache::Options::UnsynchronizedMemoryResource> >;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V1ubub = LRUCache::LRUCacheV1<
+    KeyType, ValueType, LRUCache::Options::BoostUnorderedMap<
+    LRUCache::Options::BoostHash,
+    LRUCache::Options::UnsynchronizedMemoryResource> >;
 
 template <typename KeyType, typename  ValueType>
 using LRUCache_V1es = LRUCache::LRUCacheV1<
@@ -512,6 +573,33 @@ using LRUCache_V2ubfs = LRUCache::LRUCacheV2<
 >;
 
 template <typename KeyType, typename  ValueType>
+using LRUCache_V2ovus = LRUCache::LRUCacheV2<
+    KeyType, ValueType,
+    LRUCache::Options::StdMap<LRUCache::Options::UnsynchronizedMemoryResource>,
+    LRUCache::Options::StdList<LRUCache::Options::UnsynchronizedMemoryResource>
+>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2usus = LRUCache::LRUCacheV2<
+    KeyType, ValueType,
+    LRUCache::Options::StdUnorderedMap<
+    LRUCache::Options::StdHash,
+    LRUCache::Options::UnsynchronizedMemoryResource
+    >,
+    LRUCache::Options::StdList<LRUCache::Options::UnsynchronizedMemoryResource>
+>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ubus = LRUCache::LRUCacheV2<
+    KeyType, ValueType,
+    LRUCache::Options::StdUnorderedMap<
+    LRUCache::Options::BoostHash,
+    LRUCache::Options::UnsynchronizedMemoryResource
+    >,
+    LRUCache::Options::StdList<LRUCache::Options::UnsynchronizedMemoryResource>
+>;
+
+template <typename KeyType, typename  ValueType>
 using LRUCache_V2ovsb = LRUCache::LRUCacheV2<
     KeyType, ValueType,
     LRUCache::Options::BoostMap<LRUCache::Options::StdAllocator>,
@@ -565,17 +653,63 @@ using LRUCache_V2ubfb = LRUCache::LRUCacheV2<
 >;
 
 template <typename KeyType, typename  ValueType>
+using LRUCache_V2ovub = LRUCache::LRUCacheV2<
+    KeyType, ValueType,
+    LRUCache::Options::BoostMap<LRUCache::Options::UnsynchronizedMemoryResource>,
+    LRUCache::Options::BoostList<LRUCache::Options::UnsynchronizedMemoryResource>
+>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2usub = LRUCache::LRUCacheV2<
+    KeyType, ValueType,
+    LRUCache::Options::BoostUnorderedMap<
+    LRUCache::Options::StdHash,
+    LRUCache::Options::UnsynchronizedMemoryResource
+    >,
+    LRUCache::Options::BoostList<LRUCache::Options::UnsynchronizedMemoryResource>
+>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ubub = LRUCache::LRUCacheV2<
+    KeyType, ValueType,
+    LRUCache::Options::BoostUnorderedMap<
+        LRUCache::Options::BoostHash,
+        LRUCache::Options::UnsynchronizedMemoryResource
+    >,
+    LRUCache::Options::BoostList<LRUCache::Options::UnsynchronizedMemoryResource>
+>;
+
+
+template <typename KeyType, typename  ValueType>
 using LRUCache_V2es = LRUCache::LRUCacheV2<
     KeyType, ValueType,
-    LRUCache::Options::EmilibHashMap<LRUCache::Options::StdHash>,
+    LRUCache::Options::EmilibHashMap<LRUCache::Options::StdHash, 
+        LRUCache::Options::FastPoolAllocator>,
     LRUCache::Options::BoostList<LRUCache::Options::FastPoolAllocator>
 >;
 
 template <typename KeyType, typename  ValueType>
 using LRUCache_V2eb = LRUCache::LRUCacheV2<
     KeyType, ValueType,
-    LRUCache::Options::EmilibHashMap<LRUCache::Options::BoostHash>,
+    LRUCache::Options::EmilibHashMap<LRUCache::Options::BoostHash,
+        LRUCache::Options::FastPoolAllocator>,
     LRUCache::Options::BoostList<LRUCache::Options::FastPoolAllocator>
+>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2esu = LRUCache::LRUCacheV2<
+    KeyType, ValueType,
+    LRUCache::Options::EmilibHashMap<LRUCache::Options::StdHash,
+    LRUCache::Options::UnsynchronizedMemoryResource>,
+    LRUCache::Options::BoostList<LRUCache::Options::UnsynchronizedMemoryResource>
+>;
+
+template <typename KeyType, typename  ValueType>
+using LRUCache_V2ebu = LRUCache::LRUCacheV2<
+    KeyType, ValueType,
+    LRUCache::Options::EmilibHashMap<LRUCache::Options::BoostHash,
+    LRUCache::Options::UnsynchronizedMemoryResource>,
+    LRUCache::Options::BoostList<LRUCache::Options::UnsynchronizedMemoryResource>
 >;
 
 template <typename KeyType, typename  ValueType>
@@ -613,6 +747,21 @@ using LRUCache_V4ubf = LRUCache::LRUCacheV4<
     LRUCache::Options::FastPoolAllocator
 >;
 
+template <typename KeyType, typename  ValueType>
+using LRUCache_V4ovu = LRUCache::LRUCacheV4<KeyType, ValueType,
+    LRUCache::Options::VoidHash,
+    LRUCache::Options::UnsynchronizedMemoryResource>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V4usu = LRUCache::LRUCacheV4<
+    KeyType, ValueType, LRUCache::Options::StdHash,
+    LRUCache::Options::UnsynchronizedMemoryResource
+>;
+template <typename KeyType, typename  ValueType>
+using LRUCache_V4ubu = LRUCache::LRUCacheV4<
+    KeyType, ValueType, LRUCache::Options::BoostHash,
+    LRUCache::Options::UnsynchronizedMemoryResource
+>;
+
 
 template <typename KeyType, typename  ValueType>
 using LRUCache_V5s = LRUCache::LRUCacheV5<
@@ -632,28 +781,39 @@ std::vector<std::unique_ptr<LRUCacheTest>> constructTestVector() {
     std::unique_ptr<LRUCacheTest> init_list[] = {
         std::make_unique<LRUCacheTestImpl<LRUCache_V1ovsb> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V1ovfb> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1ovub> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V1ovss> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V1ovfs> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1ovus> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V2ovsb> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V2ovfb> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2ovub> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V2ovss> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V2ovfs> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2ovus> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V3ov> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V4ovs> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V4ovf> >(),
+        //std::make_unique<LRUCacheTestImpl<LRUCache_V4ovu> >(),
         // hash based implementations of LRUCache are below
         std::make_unique<LRUCacheTestImpl<LRUCache_V1usss> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V1ubss> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V1usfs> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V1ubfs> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1usus> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1ubus> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V1ussb> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V1ubsb> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V1usfb> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V1ubfb> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1usub> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V1ubub> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V2usss> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V2ubss> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V2usfs> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V2ubfs> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2usus> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2ubus> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V2ussb> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V2ubsb> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V2usfb> >(),
@@ -672,6 +832,8 @@ std::vector<std::unique_ptr<LRUCacheTest>> constructTestVector() {
         std::make_unique<LRUCacheTestImpl<LRUCache_V1eb> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V2es> >(),
         std::make_unique<LRUCacheTestImpl<LRUCache_V2eb> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2esu> >(),
+        std::make_unique<LRUCacheTestImpl<LRUCache_V2ebu> >(),
     };
     return std::vector<std::unique_ptr<LRUCacheTest>>(
         std::make_move_iterator(std::begin(init_list)),

@@ -37,7 +37,9 @@ public:
     LRUCacheV2& operator=(LRUCacheV2&&) = default;
     ~LRUCacheV2() = default;
     LRUCacheV2(size_t cacheSize)
-        : maxCacheSize(cacheSize), keyMap(2*cacheSize) {}
+        : maxCacheSize(cacheSize), keyMap(2*cacheSize,ao), 
+        lruQueue(ao.template getAllocator<typename QueueType::value_type>())
+    {}
 
     const ValueType* get(const KeyType& key) {
         auto l = keyMap.find(key);
@@ -113,6 +115,7 @@ private:
         ValueType value;
         typename MapType::iterator mapLocation;
     };
+    typename MapOption::MyAllocatorOption ao;
     MapType keyMap;
     QueueType lruQueue;
     const size_t maxCacheSize;

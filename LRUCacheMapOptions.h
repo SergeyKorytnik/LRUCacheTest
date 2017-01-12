@@ -36,12 +36,22 @@ struct StdMap {
                 std::pair<const KeyType, ValueType>
             >
         > {
+        using MyBase = std::map < KeyType, ValueType,
+            std::less<KeyType>,
+            typename AllocatorOption::template type<
+            std::pair<const KeyType, ValueType>
+            >
+        >;
         // to unify API with std::unordered_map
-        OrderedMapType(size_t) {}
+        OrderedMapType(size_t, AllocatorOption& ao)
+            : MyBase(ao.template getAllocator<typename MyBase::value_type>())
+        
+        {}        
     };
 
     template <typename KeyType, typename ValueType>
     using type = OrderedMapType<KeyType, ValueType>;
+    using MyAllocatorOption = AllocatorOption;
 
     static std::string description() { 
         std::string a = AllocatorOption::description();
@@ -64,12 +74,22 @@ struct BoostMap {
                 std::pair<const KeyType, ValueType>
             >
         > {
+        using MyBase = boost::container::map<KeyType, ValueType,
+            std::less<KeyType>,
+            typename AllocatorOption::template type<
+            std::pair<const KeyType, ValueType>
+            >
+        >;
         // to unify API with std::unordered_map
-        OrderedMapType(size_t) {}
+        OrderedMapType(size_t, AllocatorOption& ao)
+            : MyBase(ao.template getAllocator<typename MyBase::value_type>())
+
+        {}
     };
 
     template <typename KeyType, typename ValueType>
     using type = OrderedMapType<KeyType, ValueType>;
+    using MyAllocatorOption = AllocatorOption;
 
     static std::string description() {
         std::string a = AllocatorOption::description();
@@ -85,15 +105,33 @@ struct BoostMap {
 template <typename HashOption = StdHash,
     typename AllocatorOption = StdAllocator>
 struct StdUnorderedMap {
-
     template <typename KeyType, typename ValueType>
-    using type = std::unordered_map<KeyType, ValueType,
-        typename HashOption::template type<KeyType>,
+    struct UnorderedMapType
+        : public std::unordered_map<KeyType, ValueType,
+            typename HashOption::template type<KeyType>,
             std::equal_to<KeyType>,
             typename AllocatorOption::template type<
                 std::pair<const KeyType, ValueType>
             >
+        > {
+        using MyBase = std::unordered_map < KeyType, ValueType,
+            typename HashOption::template type<KeyType>,
+            std::equal_to<KeyType>,
+            typename AllocatorOption::template type<
+            std::pair<const KeyType, ValueType>
+            >
         >;
+        UnorderedMapType(size_t numBuckets, AllocatorOption& ao) 
+            : MyBase(numBuckets,typename MyBase::hasher(),typename MyBase::key_equal(),
+                ao.template getAllocator<typename MyBase::value_type>()
+            )
+        {}
+    };
+
+    template <typename KeyType, typename ValueType>
+    using type = UnorderedMapType<KeyType,ValueType>;
+
+    using MyAllocatorOption = AllocatorOption;
 
     static std::string description() {
         std::string a = AllocatorOption::description();
@@ -128,7 +166,11 @@ struct BoostUnorderedMap {
                 std::pair<const KeyType, ValueType>
             >
         >;
-        UnorderedMapType(size_t numBuckets) : MyBase(numBuckets)
+        UnorderedMapType(size_t numBuckets, AllocatorOption& ao)
+            : MyBase(numBuckets, typename MyBase::hasher(),
+                typename MyBase::key_equal(),
+                ao.template getAllocator<typename MyBase::value_type>()
+            )
         {}
 
         // to unify API with std::unordered_map
@@ -151,6 +193,7 @@ struct BoostUnorderedMap {
 
     template <typename KeyType, typename ValueType>
     using type = UnorderedMapType<KeyType, ValueType>;
+    using MyAllocatorOption = AllocatorOption;
 
     static std::string description() {
         std::string a = AllocatorOption::description();
@@ -164,13 +207,26 @@ struct BoostUnorderedMap {
     }
 };
 
-template <typename HashOption = StdHash>
-    struct EmilibHashMap {
+template <typename HashOption = StdHash,
+    typename AllocatorOption = StdAllocator>
+struct EmilibHashMap {
+    using MyAllocatorOption = AllocatorOption;
 
     template <typename KeyType, typename ValueType>
-    using type = emilib::HashMap<KeyType, ValueType,
-        typename HashOption::template type<KeyType>
-    >;
+    struct UnorderedMapType
+        : public emilib::HashMap<KeyType, ValueType,
+            typename HashOption::template type<KeyType>
+        > {
+        using MyBase = emilib::HashMap<KeyType, ValueType,
+            typename HashOption::template type<KeyType>
+        >;
+        UnorderedMapType(size_t numBuckets, MyAllocatorOption&)
+            : MyBase(numBuckets)
+        {}
+    };
+
+    template <typename KeyType, typename ValueType>
+    using type = UnorderedMapType<KeyType, ValueType>;
 
     static std::string description() {
         return "emilib::HashMap(" + HashOption::description() + ")";
@@ -179,4 +235,3 @@ template <typename HashOption = StdHash>
 
 } // namespace Options {
 } // namespace LRUCache {
-

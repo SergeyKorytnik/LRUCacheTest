@@ -31,8 +31,8 @@ public:
     LRUCacheV1& operator=(LRUCacheV1&&) = default;
     ~LRUCacheV1() = default;
 
-    LRUCacheV1(size_t cacheSize) : maxCacheSize(cacheSize)
-        , keyMap(2 * cacheSize)
+    LRUCacheV1(size_t cacheSize) : maxCacheSize(cacheSize),
+        keyMap(2 * cacheSize,ao)
     {
         entries.reserve(1 + cacheSize);
         // add the sentinel
@@ -130,6 +130,7 @@ private:
         ValueType value;
         typename MapType::iterator keyLocation;
     };
+    typename MapOption::MyAllocatorOption ao;
     // the zeroth entry is a sentinel in the LRU list
     // so the maximum number of entries is maxCacheSize + 1
     std::vector<Entry> entries;     

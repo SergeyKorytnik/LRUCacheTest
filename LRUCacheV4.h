@@ -49,7 +49,8 @@ private:
             AllocatorType
         >;
 public:
-    LRUCacheV4(size_t cacheSize) : maxCacheSize(cacheSize) {}
+    LRUCacheV4(size_t cacheSize) : maxCacheSize(cacheSize),
+        entries(ao.template getAllocator<typename EntryMultiIndex::value_type>()) {}
     static std::string description() {
         std::string s = "LRUCacheV4(boost::multi_index_container(";
         if (std::is_same < HashOption, Options::VoidHash >::value) {
@@ -115,7 +116,7 @@ private:
         // http://www.boost.org/doc/libs/1_62_0/libs/multi_index/doc/tutorial/techniques.html#emulate_assoc_containers
         mutable ValueType value;
     };
-
+    AllocatorOption ao;
     EntryMultiIndex entries;
     const size_t maxCacheSize;
 };
